@@ -5,9 +5,14 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import ora from 'ora';
 import { execSync } from 'child_process';
-import { existsSync, rmSync } from 'fs';
-import { join } from 'path';
+import { existsSync, rmSync, readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import validateProjectName from 'validate-npm-package-name';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
 
 const program = new Command();
 
@@ -22,6 +27,7 @@ async function main() {
 
   program
     .name('create-xrp')
+    .version(packageJson.version, '-v, --version', 'Output the current version')
     .description('Scaffold a new XRPL dApp project')
     .argument('[project-name]', 'Name of your project')
     .action(async (projectName?: string) => {
