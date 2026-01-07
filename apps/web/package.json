@@ -11,7 +11,9 @@
   "dependencies": {
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
+    "dayjs": "^1.11.19",
     "events": "^3.3.0",
+    "five-bells-condition": "^5.0.1",
     "next": "14.0.4",
     "process": "^0.11.10",
     "react": "^18.2.0",

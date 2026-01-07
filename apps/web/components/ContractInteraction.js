@@ -1,195 +1,111 @@
 "use client";
-
-import { useState } from "react";
-import { useWallet } from "./providers/WalletProvider";
+import React, { useState } from 'react';
+import { generateEscrowKeys, createGigEscrow } from '../lib/xrpl/escrow';
+import { useWalletManager } from '../hooks/useWalletManager';
 
 export function ContractInteraction() {
-  const { walletManager, isConnected, addEvent, showStatus } = useWallet();
-  const [contractAddress, setContractAddress] = useState("");
-  const [functionName, setFunctionName] = useState("");
-  const [functionArgs, setFunctionArgs] = useState("");
-  const [isCalling, setIsCalling] = useState(false);
-  const [callResult, setCallResult] = useState(null);
+  const { wallet, client } = useWalletManager(); // Accesses connected wallet from your provider
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    freelancer: '',
+    amount: '',
+  });
 
-  const stringToHex = (str) => {
-    return Array.from(str)
-      .map((c) => c.charCodeAt(0).toString(16).padStart(2, "0"))
-      .join("")
-      .toUpperCase();
-  };
+  const handleCreateGig = async (e) => {
+    e.preventDefault();
+    
+    let activeWallet = wallet; 
+    let isMock = false;
 
-  const loadCounterExample = () => {
-    setFunctionName("increment");
-    setFunctionArgs("");
-    setCallResult(null);
-  };
-
-  const handleCallContract = async () => {
-    if (!walletManager || !walletManager.account) {
-      showStatus("Please connect a wallet first", "error");
-      return;
+    // --- MOCK MODE TRIGGER ---
+    if (!wallet) {
+      const useMock = confirm("No wallet connected. Use a dummy wallet for testing?");
+      if (!useMock) return;
+      
+      activeWallet = { address: "rMockWalletAddress12345Demo" };
+      isMock = true;
     }
+    // -------------------------
 
-    if (!contractAddress || !functionName) {
-      showStatus("Please provide contract address and function name", "error");
-      return;
-    }
-
+    setLoading(true);
     try {
-      setIsCalling(true);
-      setCallResult(null);
+      // 1. Logic still generates real crypto conditions
+      const { condition, fulfillment } = generateEscrowKeys(); 
 
-      const transaction = {
-        TransactionType: "ContractCall",
-        Account: walletManager.account.address,
-        ContractAccount: contractAddress,
-        Fee: "1000000", // 1 XRP in drops
-        FunctionName: stringToHex(functionName),
-        ComputationAllowance: "1000000",
+      const details = {
+        amount: formData.amount,
+        destination: formData.freelancer,
+        condition: condition,
+        finishAfterSeconds: 300,
       };
 
-      // Add function arguments if provided
-      if (functionArgs) {
-        transaction.FunctionArguments = stringToHex(functionArgs);
+      let sequence;
+      
+      if (isMock) {
+        // Mock branch: Just generate a fake sequence
+        sequence = Math.floor(Math.random() * 100000);
+        await new Promise(res => setTimeout(res, 800)); 
+      } else {
+        // Real branch: Only runs if 'wallet' and 'client' exist
+        if (!client) throw new Error("XRPL Client not connected");
+        const result = await createGigEscrow(client, activeWallet, details);
+        sequence = result.result.tx_json.Sequence;
       }
+      
+      // 2. Save to simulated database
+      const gigData = { 
+        condition, 
+        fulfillment, 
+        sequence, 
+        amount: formData.amount, 
+        isMock,
+        status: "Created" 
+      };
+      localStorage.setItem(`gig_${sequence}`, JSON.stringify(gigData));
 
-      const txResult = await walletManager.signAndSubmit(transaction);
-
-      setCallResult({
-        success: true,
-        hash: txResult.hash || "Pending",
-        id: txResult.id,
-      });
-
-      showStatus("Contract called successfully!", "success");
-      addEvent("Contract Called", txResult);
+      alert(`Gig Created! Sequence: ${sequence} ${isMock ? "(Mock Mode)" : ""}`);
     } catch (error) {
-      setCallResult({
-        success: false,
-        error: error.message,
-      });
-      showStatus(`Contract call failed: ${error.message}`, "error");
-      addEvent("Contract Call Failed", error);
+      console.error("Escrow failed:", error);
+      alert(`Error: ${error.message}`);
     } finally {
-      setIsCalling(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="card">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold">Interact with Contract</h2>
-        <button onClick={loadCounterExample} className="text-sm text-accent hover:underline">
-          Load Counter Example
+    <div className="p-6 bg-white shadow-md rounded-lg border border-gray-200">
+      <h2 className="text-xl font-bold mb-4">Create a Secure Gig</h2>
+      <form onSubmit={handleCreateGig} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium">Freelancer Wallet Address</label>
+          <input 
+            type="text" 
+            className="w-full p-2 border rounded" 
+            placeholder="rPj..." 
+            value={formData.freelancer}
+            onChange={(e) => setFormData({...formData, freelancer: e.target.value})}
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">XRP Amount</label>
+          <input 
+            type="number" 
+            className="w-full p-2 border rounded" 
+            placeholder="1.0" 
+            value={formData.amount}
+            onChange={(e) => setFormData({...formData, amount: e.target.value})}
+            required
+          />
+        </div>
+        <button 
+          type="submit" 
+          disabled={loading}
+          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
+        >
+          {loading ? "Processing Transaction..." : "Lock Funds & Start Gig"}
         </button>
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Contract Address
-          </label>
-          <input
-            type="text"
-            value={contractAddress}
-            onChange={(e) => setContractAddress(e.target.value)}
-            placeholder="rAddress..."
-            className="input"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Function Name</label>
-          <input
-            type="text"
-            value={functionName}
-            onChange={(e) => setFunctionName(e.target.value)}
-            placeholder="e.g., increment, get_value"
-            className="input"
-          />
-          {functionName && (
-            <div className="mt-1 text-xs text-gray-500">
-              Hex: {stringToHex(functionName)}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Function Arguments (optional)
-          </label>
-          <input
-            type="text"
-            value={functionArgs}
-            onChange={(e) => setFunctionArgs(e.target.value)}
-            placeholder="e.g., 5, hello"
-            className="input"
-          />
-          {functionArgs && (
-            <div className="mt-1 text-xs text-gray-500">
-              Hex: {stringToHex(functionArgs)}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-          <strong>Example Counter Contract Functions:</strong>
-          <ul className="list-disc list-inside mt-1 space-y-1">
-            <li>increment - Increase counter by 1</li>
-            <li>decrement - Decrease counter by 1</li>
-            <li>get_value - Get current counter value</li>
-            <li>reset - Reset counter to 0</li>
-          </ul>
-        </div>
-
-        {isConnected && contractAddress && functionName && (
-          <button
-            onClick={handleCallContract}
-            disabled={isCalling}
-            className="w-full bg-accent text-white py-2 px-4 rounded-lg font-semibold hover:bg-accent/90 disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {isCalling ? "Calling Contract..." : "Call Contract"}
-          </button>
-        )}
-
-        {!isConnected && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-            <strong>Connect your wallet</strong> to interact with contracts
-          </div>
-        )}
-
-        {callResult && (
-          <div
-            className={`p-4 rounded-lg ${
-              callResult.success
-                ? "bg-green-50 border border-green-200"
-                : "bg-red-50 border border-red-200"
-            }`}
-          >
-            {callResult.success ? (
-              <>
-                <h3 className="font-bold text-green-800 mb-2">Contract Called!</h3>
-                <p className="text-sm text-green-700">
-                  <strong>Hash:</strong> {callResult.hash}
-                </p>
-                {callResult.id && (
-                  <p className="text-sm text-green-700">
-                    <strong>ID:</strong> {callResult.id}
-                  </p>
-                )}
-                <p className="text-xs text-green-600 mt-2">
-                  ✅ Contract function has been called successfully
-                </p>
-              </>
-            ) : (
-              <>
-                <h3 className="font-bold text-red-800 mb-2">Call Failed</h3>
-                <p className="text-sm text-red-700">{callResult.error}</p>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      </form>
     </div>
   );
 }
