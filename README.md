@@ -1,200 +1,99 @@
-# Scaffold-XRP
+# 🤝 GigSecure - Decentralized Freelancing Platform
 
-A Next.js-based development stack for building decentralized applications on XRPL with smart contracts. Built with Turborepo, inspired by Scaffold-ETH-2.
+> A trustless gig marketplace powered by the XRP Ledger (XRPL) Escrow features.
 
-## Features
+![Project Status](https://img.shields.io/badge/Status-Prototype-blue)
+![Blockchain](https://img.shields.io/badge/Blockchain-XRPL_Testnet-black)
+![Frontend](https://img.shields.io/badge/Frontend-React.js-61DAFB)
 
-- **Next.js 14** - Modern React framework with App Router
-- **Turborepo** - High-performance build system for monorepos
-- **XRPL Integration** - Full XRPL client with WebSocket support
-- **Multi-Wallet Support** - Connect with Xaman, Crossmark, GemWallet, or manual address
-- **Network Switching** - Easy switching between AlphaNet, Testnet, and Devnet
-- **Smart Contract Tools** - Deploy and interact with XRPL smart contracts
-- **Faucet Integration** - Request test XRP directly from the UI
-- **Transaction History** - View your transaction history with explorer links
-- **Debug Panel** - Execute custom XRPL commands and view network info
-- **Sample Contract** - Counter contract example in Rust
+## 📖 Overview
 
-## Quick Start
+**GigSecure** solves the issue of trust between Freelancers and Clients. In traditional freelancing, freelancers worry about non-payment, and clients worry about poor-quality work.
+
+This application uses **XRPL Escrows** to hold funds cryptographically. The funds are locked on the blockchain and can only be released when the Client provides a "Secret Key" (Fulfillment) to the Freelancer, signifying that the work has been approved.
+
+## ✨ Key Features
+
+- **Create Gigs:** Clients can post jobs with a specific reward (in XRP).
+- **Secure Escrow:** Funds are locked on the XRP Ledger immediately upon gig creation—proving the client has the money.
+- **Crypto-Condition Logic:** Utilizing SHA-256 pre-image verification (Condition/Fulfillment) to secure payments.
+- **Non-Custodial:** The platform never holds user keys; users sign transactions directly via their local wallet seed.
+- **Real-time Status:** Visual indicators for Escrow creation and Claim status.
+
+## 🛠 Tech Stack
+
+- **Frontend:** React.js, Vite
+- **Blockchain Integration:** `xrpl.js` (Client-side SDK)
+- **Network:** XRPL Testnet (Altnet)
+- **Styling:** CSS / Tailwind
+
+## 🚀 How It Works (The Escrow Flow)
+
+1.  **Initialization:** The Client posts a gig. Under the hood, a `CreateEscrow` transaction is submitted to the XRPL.
+    - A **Condition** (Lock) is generated from a secret key.
+    - The funds are moved from the Client's wallet to the Ledger's Escrow vault.
+2.  **Work Phase:** The Freelancer sees the gig and starts working.
+3.  **Submission:** The Freelancer submits the work off-chain (e.g., via email or GitHub).
+4.  **Approval:** If the Client is satisfied, they share the **Secret Key (Fulfillment)** with the Freelancer.
+5.  **Claiming:** The Freelancer enters the Secret Key into the UI. The app submits a `FinishEscrow` transaction. The Ledger verifies the key matches the lock, and funds are instantly transferred to the Freelancer.
+
+## 💻 Installation & Setup
 
 ### Prerequisites
 
-- Node.js 18+ and pnpm 8+
-- Rust (optional, for building contracts)
+- Node.js (v18 or higher)
+- pnpm
 
-### Installation
+### Steps
 
-\`\`\`bash
-# Clone the repository
-git clone https://github.com/yourusername/scaffold-xrp.git
-cd scaffold-xrp
+1.  **Clone the repository in a new folder / directory**
 
-# Install dependencies
-pnpm install
+    ```bash
+    git clone [https://github.com/DeFinitelyWinning/GigSecure](https://github.com/DeFinitelyWinning/GigSecure)
+    cd GigSecure
+    ```
 
-# Start the development server
-pnpm dev
-\`\`\`
+2.  **Install dependencies**
 
-The app will be available at [http://localhost:3000](http://localhost:3000)
+    ```bash
+    pnpm install
+    ```
 
-## Project Structure
+3.  **Configure Environment**
+    - Ensure you have an internet connection to connect to `wss://s.altnet.rippletest.net:51233`.
+    - No API keys are needed for the Testnet.
 
-\`\`\`
-scaffold-xrp/
-├── apps/
-│   └── web/                 # Next.js application
-│       ├── app/             # Next.js App Router
-│       ├── components/      # React components
-│       └── lib/             # Utilities and configurations
-├── packages/
-│   └── bedrock/             # Smart contracts (Rust)
-│       ├── src/
-│       │   └── lib.rs       # Counter contract example
-│       └── Cargo.toml
-├── package.json
-├── pnpm-workspace.yaml
-└── turbo.json
-\`\`\`
+4.  **Run the application**
+    ```bash
+    pnpm dev
+    ```
+    Open your browser to `http://localhost:3000` (or the port shown in terminal).
 
-## Usage
+## 🧪 Usage Guide
 
-### Connecting Your Wallet
+1.  **Login:** Enter a valid XRPL Testnet Seed (or generate one at [xrpl.org/resources/testnet-faucet](https://xrpl.org/resources/testnet-faucet)).
+2.  **Create Escrow:** Click "Create Escrowg," enter the reward amount and address of Freelancer. Copy the **Secret Key** provided—save this! You need it to unlock the funds later.
+3.  **Switch Account:** Logout and login with a _different_ wallet (the Freelancer).
+4.  **Claim Funds:** Select the gig. When prompted, enter the **Secret Key** (from Step 2).
+5.  **Success:** Watch the wallet balance update in real-time.
 
-1. Click "Connect Wallet" in the header
-2. Choose your wallet (Xaman, Crossmark, GemWallet) or enter address manually
-3. Approve the connection in your wallet extension
+## ⚠️ Troubleshooting
 
-### Getting Test XRP
+- **"Right side of assignment cannot be destructured":** This usually means the XRPL client failed to connect or the transaction details were passed incorrectly. Refresh the page to reset the connection.
+- **"tecUNFUNDED_PAYMENT":** The test wallet is out of XRP. Go to the XRPL Faucet to top up.
 
-1. Connect your wallet
-2. Go to the "Faucet" section
-3. Click "Request Test XRP"
-4. Wait for the transaction to complete
+## 🔮 Future Improvements
 
-### Deploying a Smart Contract
+- **Integration with IPFS:** To store gig descriptions and deliverables in a decentralized manner.
+- **Arbiter System:** Adding a third-party mediator multisig for dispute resolution.
+- **Mainnet Launch:** Transitioning from Testnet to the real XRP Ledger.
 
-1. Build your contract (see [Building Contracts](#building-contracts))
-2. Go to "Deploy Contract"
-3. Upload your `.wasm` file
-4. Confirm the transaction (requires 100 XRP fee)
-5. Copy the contract address from the confirmation
+## 👥 Contributors
 
-### Interacting with Contracts
+- **Hasan Ahmed Nasif** - _Developer_
+- **Max Lim Hao Yan** - _Developer_
+- **Ravichandran Gokul** - _Developer_
 
-1. Go to "Interact with Contract"
-2. Enter the contract address
-3. Enter the function name (e.g., `increment`)
-4. Add arguments if needed
-5. Click "Call Contract Function"
-6. Confirm the transaction in your wallet
+---
 
-## Building Contracts
-
-### Install Rust
-
-\`\`\`bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-rustup target add wasm32-unknown-unknown
-\`\`\`
-
-### Build the Counter Contract
-
-\`\`\`bash
-cd packages/bedrock
-cargo build --target wasm32-unknown-unknown --release
-\`\`\`
-
-The compiled WASM file will be at:
-\`\`\`
-target/wasm32-unknown-unknown/release/counter.wasm
-\`\`\`
-
-See [packages/bedrock/README.md](packages/bedrock/README.md) for more details.
-
-## Development
-
-### Available Commands
-
-\`\`\`bash
-pnpm dev          # Start development server
-pnpm build        # Build all packages
-pnpm lint         # Lint all packages
-pnpm format       # Format code with Prettier
-pnpm clean        # Clean build artifacts
-\`\`\`
-
-### Environment Variables
-
-Create a `.env.local` file in `apps/web/`:
-
-\`\`\`env
-# Optional: Configure default network
-NEXT_PUBLIC_DEFAULT_NETWORK=alphanet
-\`\`\`
-
-## Networks
-
-### AlphaNet (Default)
-- **WebSocket:** wss://alphanet.nerdnest.xyz
-- **Network ID:** 21465
-- **Faucet:** https://alphanet.faucet.nerdnest.xyz/accounts
-- **Explorer:** https://alphanet.xrpl.org
-
-### Testnet
-- **WebSocket:** wss://s.altnet.rippletest.net:51233
-- **Network ID:** 1
-- **Faucet:** https://faucet.altnet.rippletest.net/accounts
-- **Explorer:** https://testnet.xrpl.org
-
-### Devnet
-- **WebSocket:** wss://s.devnet.rippletest.net:51233
-- **Network ID:** 2
-- **Faucet:** https://faucet.devnet.rippletest.net/accounts
-- **Explorer:** https://devnet.xrpl.org
-
-## Components
-
-### Core Components
-
-- **Header** - Navigation with wallet connection and network switching
-- **AccountInfo** - Display wallet address and balance
-- **FaucetRequest** - Request test XRP from network faucet
-- **ContractDeployment** - Upload and deploy WASM contracts
-- **ContractInteraction** - Call contract functions
-- **TransactionHistory** - View transaction history
-- **DebugPanel** - Execute custom XRPL commands
-
-### Providers
-
-- **XRPLProvider** - Global state for XRPL connection, wallet, and network
-
-## Technologies
-
-- [Next.js 14](https://nextjs.org/)
-- [React 18](https://react.dev/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [Turborepo](https://turbo.build/)
-- [xrpl.js](https://js.xrpl.org/)
-- [Bedrock](https://github.com/XRPL-Commons/Bedrock)
-
-## Resources
-
-- [XRPL Documentation](https://xrpl.org/)
-- [XRPL Smart Contracts Guide](https://xrpl.org/docs.html)
-- [Bedrock GitHub](https://github.com/XRPL-Commons/Bedrock)
-- [Scaffold-ETH-2](https://github.com/scaffold-eth/scaffold-eth-2)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Acknowledgments
-
-- Inspired by [Scaffold-ETH-2](https://github.com/scaffold-eth/scaffold-eth-2)
-- Built for the XRPL community
-- Uses [Bedrock](https://github.com/XRPL-Commons/Bedrock) for smart contract development
+_Built for NUS FinTech Summit 2026 at NUS._
