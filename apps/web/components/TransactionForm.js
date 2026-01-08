@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useWallet } from "./providers/WalletProvider";
 import { generateEscrowKeys, createGigEscrow } from "../lib/xrpl/escrow";
 
-export function TransactionForm({ onClose }) {
+export function TransactionForm({ onClose, onAfterSubmit }) {
   // Get wallet and client directly from the global context
   const { wallet, client, isConnected } = useWallet();
 
@@ -27,9 +27,7 @@ export function TransactionForm({ onClose }) {
       }
 
       // 1. Generate the Secret Key (Preimage) and Lock (Condition)
-      // This happens LOCALLY. The secret never leaves this browser yet.
       const keys = generateEscrowKeys();
-
       console.log("Generated Lock:", keys.condition);
 
       // 2. Submit the Escrow Transaction to XRPL
@@ -38,7 +36,7 @@ export function TransactionForm({ onClose }) {
         amount,
         destination,
         condition: keys.condition,
-        finishAfterSeconds: 3600,
+        cancelAfterSeconds: 3600, // NOTE: matches createGigEscrow signature
       });
 
       console.log("Tx Result:", result);
@@ -46,7 +44,9 @@ export function TransactionForm({ onClose }) {
       if (result.result.meta.TransactionResult === "tesSUCCESS") {
         // 3. Show the Success Screen
         const jobId = result.result.Sequence;
-        const currentSecrets = JSON.parse(localStorage.getItem("gig_secrets") || "{}");
+        const currentSecrets = JSON.parse(
+          localStorage.getItem("gig_secrets") || "{}"
+        );
         currentSecrets[jobId] = keys.fulfillment; // Save Key using Job ID
         localStorage.setItem("gig_secrets", JSON.stringify(currentSecrets));
 
@@ -56,7 +56,9 @@ export function TransactionForm({ onClose }) {
           txHash: result.result.hash,
         });
       } else {
-        throw new Error("Transaction Failed: " + result.result.meta.TransactionResult);
+        throw new Error(
+          "Transaction Failed: " + result.result.meta.TransactionResult
+        );
       }
     } catch (err) {
       console.error(err);
@@ -72,7 +74,12 @@ export function TransactionForm({ onClose }) {
       <div className="flex flex-col h-full bg-slate-900 p-6 rounded-lg border border-slate-700 animate-in fade-in">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-4 text-emerald-400">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              className="w-8 h-8"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -91,7 +98,8 @@ export function TransactionForm({ onClose }) {
               {successData.secret}
             </div>
             <p className="text-[10px] text-red-400/70 mt-2">
-              Send this key to the freelancer ONLY when you are happy with their work.
+              Send this key to the freelancer ONLY when you are happy with their
+              work.
             </p>
           </div>
 
@@ -113,10 +121,13 @@ export function TransactionForm({ onClose }) {
             setAmount("");
             setDestination("");
             if (onClose) onClose();
+            if (typeof onAfterSubmit === "function") {
+              onAfterSubmit(); // notify parent to refresh gigs
+            }
           }}
           className="w-full mt-4 bg-slate-100 text-slate-900 font-bold py-3 rounded hover:bg-white transition"
         >
-          Close & Create Another
+          Close &amp; Create Another
         </button>
       </div>
     );

@@ -8,6 +8,7 @@ export function SidePanelOverlay({
   open,
   mode, // This will basically always be "createEscrow" now
   onClose,
+  onAfterSubmit,
 }) {
   const isCreate = mode === "createEscrow";
 
@@ -55,7 +56,7 @@ export function SidePanelOverlay({
           <div className="flex-1 overflow-y-auto">
             {isCreate ? (
               /* Pass the onClose handler so the Success screen can close the panel */
-              <TransactionForm onClose={onClose} />
+              <TransactionForm onClose={onClose} onAfterSubmit={onAfterSubmit} />
             ) : (
               <div className="text-slate-500">Unknown Mode</div>
             )}
