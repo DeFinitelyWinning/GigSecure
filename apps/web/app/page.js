@@ -1,52 +1,81 @@
 "use client";
 
-import { Header } from "../components/Header";
-import { AccountInfo } from "../components/AccountInfo";
-import { ContractInteraction } from "../components/ContractInteraction";
-import { TransactionForm } from "../components/TransactionForm";
-import ActiveGigs from "../components/ActiveGigs";
-import FreelancerClaim from "../components/FreelancerClaim";
+import Link from "next/link";
+import { useState } from "react";
 
-export default function Home() {
+export default function LandingPage() {
+  const [hoveredRole, setHoveredRole] = useState(null);
+
   return (
-    <div className="min-h-screen">
-      <Header />
+    <main className="min-h-screen bg-black text-[#F5F5DC] flex items-center justify-center font-mono selection:bg-[#F5F5DC] selection:text-black">
+      {/* 1. This is the container that was missing its closing tag */}
+      <div className="flex flex-col md:flex-row items-center gap-12 md:gap-24 relative z-10">
+        {/* LEFT SIDE: Text & Navigation */}
+        <div className="flex flex-col items-start space-y-8">
+          {/* Logo / Title */}
+          <div className="relative">
+            <h1 className="text-6xl md:text-8xl font-bold tracking-tighter">GigSecure</h1>
+            <div className="h-1 w-full bg-[#F5F5DC] mt-2"></div>
+          </div>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Scaffold-XRP</h1>
-          <p className="text-gray-600">
-            A starter kit for building dApps on XRPL with smart contracts
-          </p>
-        </div>
+          {/* Navigation Choices */}
+          <div className="w-full flex flex-col space-y-4 text-xl md:text-2xl">
+            <div className="flex items-baseline justify-between w-full min-w-[300px]">
+              <span className="opacity-80">I am a...</span>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <AccountInfo />
-        </div>
+              <div className="flex flex-col items-end space-y-2">
+                {/* FREELANCER LINK */}
+                <Link
+                  href="/freelancer"
+                  className="relative group cursor-pointer"
+                  onMouseEnter={() => setHoveredRole("freelancer")}
+                  onMouseLeave={() => setHoveredRole(null)}
+                >
+                  <span
+                    className={`transition-opacity duration-300 ${hoveredRole === "client" ? "opacity-50" : "opacity-100"}`}
+                  >
+                    Freelancer
+                  </span>
+                  <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-[#F5F5DC] transition-all duration-300 group-hover:w-full"></span>
+                </Link>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <ContractInteraction />
-          <FreelancerClaim />
-          <ActiveGigs />
-          <TransactionForm />
-        </div>
-
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h2 className="text-xl font-bold mb-3">Getting Started</h2>
-          <div className="space-y-2 text-sm">
-            <p>1. Connect your wallet using the button in the header</p>
-            <p>2. Deploy your smart contract using Bedrock or XRPL CLI</p>
-            <p>3. Interact with deployed contracts using the contract interaction panel</p>
-            <p>4. Send XRP transactions using the transaction form</p>
+                {/* CLIENT LINK */}
+                <Link
+                  href="/client"
+                  className="relative group cursor-pointer"
+                  onMouseEnter={() => setHoveredRole("client")}
+                  onMouseLeave={() => setHoveredRole(null)}
+                >
+                  <span
+                    className={`transition-opacity duration-300 ${hoveredRole === "freelancer" ? "opacity-50" : "opacity-100"}`}
+                  >
+                    Client
+                  </span>
+                  <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-[#F5F5DC] transition-all duration-300 group-hover:w-full"></span>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
-      </main>
 
-      <footer className="border-t border-gray-200 mt-16">
-        <div className="container mx-auto px-4 py-6 text-center text-gray-600">
-          <p>Built with Scaffold-XRP 🚀</p>
+        {/* RIGHT SIDE: The Abstract 3D Video */}
+        <div className="relative w-64 h-64 md:w-96 md:h-96">
+          <div className="absolute inset-0 bg-gradient-to-tr from-blue-500 via-purple-500 to-orange-500 rounded-full blur-3xl opacity-20"></div>
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-contain relative z-10 mix-blend-screen"
+          >
+            <source src="/orb.mp4" type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
         </div>
-      </footer>
-    </div>
+      </div>
+
+      {/* Background Noise / Texture */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+    </main>
   );
 }
