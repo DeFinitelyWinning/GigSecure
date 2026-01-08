@@ -5,6 +5,7 @@ import { AccountInfo } from "../components/AccountInfo";
 import { ContractInteraction } from "../components/ContractInteraction";
 import { TransactionForm } from "../components/TransactionForm";
 import ActiveGigs from "../components/ActiveGigs";
+import FreelancerClaim from "../components/FreelancerClaim";
 
 export default function Home() {
   return (
@@ -25,6 +26,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <ContractInteraction />
+          <FreelancerClaim />
           <ActiveGigs />
           <TransactionForm />
         </div>
