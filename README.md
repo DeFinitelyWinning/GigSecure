@@ -49,7 +49,7 @@ This application uses **XRPL Escrows** to hold funds cryptographically. The fund
 1.  **Clone the repository in a new folder / directory**
 
     ```bash
-    git clone [https://github.com/DeFinitelyWinning/GigSecure](https://github.com/DeFinitelyWinning/GigSecure)
+    git clone https://github.com/DeFinitelyWinning/GigSecure
     cd GigSecure
     ```
 
