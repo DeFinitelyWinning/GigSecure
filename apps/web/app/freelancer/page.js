@@ -1,35 +1,36 @@
 "use client";
 
-import { useState } from "react";
 import ActiveGigs from "../../components/ActiveGigs";
 import { Header } from "../../components/Header";
-import { WalletStatus } from "../../components/WalletStatus";
-import FreelancerDetailPanel from "../../components/FreelancerDetailPanel";
-import useWalletManager from "../../hooks/useWalletManager";
 
 export default function FreelancerPage() {
-  const { wallet, connectWallet } = useWalletManager("freelancer");
-  const [selectedEscrow, setSelectedEscrow] = useState(null);
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50">
       <Header />
 
-      <main className="mx-auto max-w-6xl px-4 py-6 grid grid-cols-1 lg:grid-cols-[1.1fr_minmax(0,1fr)] gap-6">
-        <section>
-          <div className="mb-3">
-            <h1 className="header-machina text-x1 mb-1">Freelancer dashboard</h1>
-            <p className="text-xs text-slate-400">
-              See gigs funded for you and unlock payment with the secret.
-            </p>
-          </div>
-          <ActiveGigs role="freelancer" onSelectEscrow={setSelectedEscrow} />
-        </section>
+      <main className="max-w-full px-3 md:px-4 py-4">
+        <section className="flex justify-between items-start gap-8">
+          {/* LEFT COLUMN: Title & List */}
+          <div className="flex-1 max-w-xl">
+            <h1 className="heading-machina text-lg md:text-xl mb-2">Freelancer Dashboard</h1>
 
-        <section className="bg-black border border-slate-800 rounded-xl p-4 flex flex-col gap-4">
-          <WalletStatus wallet={wallet} onConnect={connectWallet} />
-          <div className="border-t border-slate-800 pt-4">
-            <FreelancerDetailPanel escrow={selectedEscrow} wallet={wallet} />
+            <p className="text-xs text-slate-400 mb-6">
+              View gigs sent to you. When the job is done, ask the client for the
+              <span className="text-amber-500 font-bold mx-1">Secret Key</span>
+              and click "Unlock Funds" to get paid.
+            </p>
+
+            {/* The 'role="freelancer"' prop tells this component to:
+                1. Fetch gigs where YOU are the Destination
+                2. Show the 'Unlock Funds' button
+            */}
+            <ActiveGigs role="freelancer" />
+          </div>
+
+          {/* RIGHT COLUMN: Spacer (Kept empty to match Client Layout structure) */}
+          <div className="hidden md:flex flex-col items-end justify-center text-xs gap-2 opacity-50">
+            {/* No buttons needed here for Freelancers */}
+            <span className="text-slate-600">GigSecure v1.0</span>
           </div>
         </section>
       </main>

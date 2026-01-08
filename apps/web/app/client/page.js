@@ -4,15 +4,16 @@ import { useState } from "react";
 import ActiveGigs from "../../components/ActiveGigs";
 import { Header } from "../../components/Header";
 import { SidePanelOverlay } from "../../components/SidePanelOverlay";
-import useWalletManager from "../../hooks/useWalletManager";
+// CHANGE: Import our new Provider hook
+import { useWallet } from "../../components/providers/WalletProvider";
 
 export default function ClientPage() {
-  const { wallet, connectWallet } = useWalletManager("client");
-  const [panelMode, setPanelMode] = useState("createEscrow"); // "createEscrow" | "connectWallet"
+  // CHANGE: Get the wallet from the new context
+  const { wallet } = useWallet();
+
   const [panelOpen, setPanelOpen] = useState(false);
 
-  function openPanel(mode) {
-    setPanelMode(mode);
+  function openCreateEscrow() {
     setPanelOpen(true);
   }
 
@@ -28,28 +29,20 @@ export default function ClientPage() {
         <section className="flex justify-between items-start gap-8">
           {/* LEFT: dashboard title + escrow cards */}
           <div className="flex-1 max-w-xl">
-            <h1 className="heading-machina text-lg md:text-xl mb-4">
-              Client dashboard
-            </h1>
+            <h1 className="heading-machina text-lg md:text-xl mb-4">Client dashboard</h1>
 
             <ActiveGigs role="client" />
           </div>
 
-          {/* RIGHT: stacked text buttons, middle-right of screen */}
+          {/* RIGHT: Action Buttons */}
           <div className="hidden md:flex flex-col items-end justify-center text-xs gap-2">
+            {/* ONLY ONE BUTTON NOW */}
             <button
               type="button"
-              onClick={() => openPanel("createEscrow")}
+              onClick={openCreateEscrow}
               className="text-slate-100 hover:underline"
             >
               Create escrow
-            </button>
-            <button
-              type="button"
-              onClick={() => openPanel("connectWallet")}
-              className="text-pink-300 hover:underline"
-            >
-              Connect XRPL wallet
             </button>
           </div>
         </section>
@@ -58,9 +51,8 @@ export default function ClientPage() {
       {/* Full-screen overlay side panel */}
       <SidePanelOverlay
         open={panelOpen}
-        mode={panelMode}
+        mode="createEscrow" // Hardcoded since we don't need 'connectWallet' mode anymore
         wallet={wallet}
-        onConnectWallet={() => setPanelMode("connectWallet")}
         onClose={closePanel}
       />
     </div>
