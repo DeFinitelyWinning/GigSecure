@@ -1,21 +1,9 @@
 "use client";
-import { useState } from "react";
-import { Wallet } from 'xrpl';
 
-export default function useWalletManager(role) {
-  const [wallet, setWallet] = useState(null);
-  const [seed, setSeed] = useState(null);
+import { useWallet } from "../components/providers/WalletProvider";
 
-  async function connectWallet() {
-    // For the Hackathon: Generating a temporary wallet if none exists
-    // In production, this would come from a wallet extension (Crossmark/Xaman)
-    const newWallet = Wallet.generate();
-    setWallet({
-      address: newWallet.address,
-      balance: 100, // Mock initial balance
-    });
-    setSeed(newWallet.seed); // This is critical for signing logic
-  }
-
-  return { wallet, seed, connectWallet };
+export default function useWalletManager() {
+  // We just return the global context
+  // 'role' is unused now because the wallet is global
+  return useWallet();
 }

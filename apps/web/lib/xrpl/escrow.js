@@ -1,29 +1,27 @@
 // @ts-nocheck
 import { Client, Wallet, xrpToDrops, isoTimeToRippleTime } from 'xrpl';
-import dayjs from 'dayjs';
 import cc from 'five-bells-condition';
 import { Buffer } from 'buffer';
 
+const TESTNET_URL = "wss://s.altnet.rippletest.net:51233";
 
+const getClient = async () => {
+  const client = new Client(TESTNET_URL);
+  await client.connect();
+  return client;
+};
 
-/**
- * Validates if a fulfillment matches a condition locally.
- * This prevents the "any key works" bug in your UI logic.
- */
 export const verifyFulfillmentLocal = (conditionHex, fulfillmentHex) => {
   try {
     const fulfillment = cc.Fulfillment.fromBinary(Buffer.from(fulfillmentHex, 'hex'));
     const generatedCondition = fulfillment.getConditionBinary().toString('hex').toUpperCase();
     return generatedCondition === conditionHex.toUpperCase();
   } catch (e) {
+    console.error("Verification Error:", e);
     return false;
   }
 };
 
-
-/**
- * Generates a Condition (Lock) and Fulfillment (Key) using browser-native crypto.
- */
 export const generateEscrowKeys = () => {
   const preimage = window.crypto.getRandomValues(new Uint8Array(32));
   const fulfillment = new cc.PreimageSha256();
@@ -35,113 +33,158 @@ export const generateEscrowKeys = () => {
   };
 };
 
-/**
- * Creates the Escrow on-chain.
- */
-export const createGigEscrow = async (client, seed, details) => {
-  const { amount, destination, condition, deadlineInSeconds = 3600 } = details;
-  const wallet = Wallet.fromSeed(seed);
+export const createGigEscrow = async (seed, details) => {
+  const client = await getClient();
   
-  // XRPL requires Ripple Epoch time for CancelAfter
-  const cancelAfterRipple = isoTimeToRippleTime(
-    dayjs().add(deadlineInSeconds, 'seconds').toISOString()
-  );
+  try {
+    const { amount, destination, condition, deadlineInSeconds = 3600 } = details;
+    const wallet = Wallet.fromSeed(seed);
+    
+    const expiryDate = new Date();
+    expiryDate.setSeconds(expiryDate.getSeconds() + deadlineInSeconds);
+    const cancelAfterRipple = isoTimeToRippleTime(expiryDate.toISOString());
 
-  const prepared = await client.autofill({
-    TransactionType: "EscrowCreate",
-    Account: wallet.address,
-    Amount: xrpToDrops(amount),
-    Destination: destination,
-    CancelAfter: cancelAfterRipple,
-    Condition: condition,
-  });
+    // 1. Prepare
+    const tx = {
+      TransactionType: "EscrowCreate",
+      Account: wallet.address,
+      Amount: xrpToDrops(amount),
+      Destination: destination,
+      CancelAfter: cancelAfterRipple,
+      Condition: condition,
+    };
 
-  const signed = wallet.sign(prepared);
-  const tx = await client.submitAndWait(signed.tx_blob);
+    // 2. Autofill with explicit buffer to prevent timeouts
+    const prepared = await client.autofill(tx);
+    const ledgerIndex = await client.getLedgerIndex();
+    prepared.LastLedgerSequence = ledgerIndex + 50; // Give it 50 ledgers (~3 mins) buffer
 
-  // Return the sequence number of this specific transaction
-  return {
-    sequence: tx.result.Sequence || tx.result.tx_json.Sequence,
-    rawResponse: tx
-  };
+    // 3. Sign & Submit
+    const signed = wallet.sign(prepared);
+    const result = await client.submitAndWait(signed.tx_blob);
+    
+    // 4. Robust Sequence Extraction
+    const sequence = result.result.Sequence || result.result.tx_json?.Sequence;
+
+    if (!sequence) {
+      throw new Error("Transaction succeeded but Sequence number could not be found.");
+    }
+
+    return {
+      success: true,
+      sequence: sequence,
+      txHash: result.result.hash,
+      owner: wallet.address
+    };
+  } catch (error) {
+    console.error("Create Escrow Error:", error);
+    throw error;
+  } finally {
+    await client.disconnect();
+  }
 };
 
-// lib/xrpl/escrow.js
+export const finishGigEscrow = async (seed, details) => {
+  const client = await getClient();
 
-/**
- * Finish the Escrow (Claim Funds)
- * Logic Fix: Added storedOwnerAddress to the destructuring.
- */
-export const finishGigEscrow = async (client, seed, details) => {
-  // Destructure all required fields from the 'details' object
-  const { 
-    ownerAddress, 
-    sequence, 
-    condition, 
-    fulfillment, 
-    isMock, 
-    storedOwnerAddress // FIX: This was missing from destructuring
-  } = details;
+  try {
+    const { ownerAddress, sequence, condition, fulfillment } = details;
+    const wallet = Wallet.fromSeed(seed);
 
-  // 1. Cryptographic Validation
-  const isKeyValid = verifyFulfillmentLocal(condition, fulfillment);
-  if (!isKeyValid) {
-    throw new Error("Cryptographic Mismatch: This key does not open this escrow.");
+    if (!sequence || isNaN(parseInt(sequence))) {
+      throw new Error(`Invalid Sequence Number: ${sequence}`);
+    }
+
+    // 1. Prepare
+    const tx = {
+      TransactionType: "EscrowFinish",
+      Account: wallet.address, 
+      Owner: ownerAddress,     
+      OfferSequence: parseInt(sequence),
+      Condition: condition,
+      Fulfillment: fulfillment,
+    };
+
+    // 2. Autofill with explicit buffer to prevent timeouts (FIX for temMALFORMED)
+    const prepared = await client.autofill(tx);
+    const ledgerIndex = await client.getLedgerIndex();
+    prepared.LastLedgerSequence = ledgerIndex + 50; // Increased buffer
+
+    // 3. Sign & Submit
+    const signed = wallet.sign(prepared);
+    const result = await client.submitAndWait(signed.tx_blob);
+
+    if (result.result.meta.TransactionResult !== "tesSUCCESS") {
+      throw new Error(`Claim Failed: ${result.result.meta.TransactionResult}`);
+    }
+
+    return { 
+      success: true,
+      txHash: result.result.hash
+    };
+  } catch (error) {
+    console.error("Claim Error:", error);
+    throw error;
+  } finally {
+    await client.disconnect();
   }
-
-  // 2. Identity Validation
-  // Logic Fix: Ensure we compare the user input against what was saved in localStorage
-  if (ownerAddress.trim().toUpperCase() !== storedOwnerAddress.trim().toUpperCase()) {
-    throw new Error(`Identity Mismatch: Provided address does not match the Escrow Owner.`);
-  }
-
-  // --- MOCK MODE BYPASS ---
-  if (isMock) {
-    await new Promise(res => setTimeout(res, 800));
-    return { success: true, method: "MOCK_SUCCESS", result: { meta: { TransactionResult: "tesSUCCESS" } } };
-  }
-
-  // --- REAL XRPL TRANSACTION ---
-  const wallet = Wallet.fromSeed(seed);
-  const prepared = await client.autofill({
-    TransactionType: "EscrowFinish",
-    Account: wallet.address,
-    Owner: ownerAddress, 
-    OfferSequence: Number(sequence),
-    Condition: condition,
-    Fulfillment: fulfillment,
-  });
-
-  const signed = wallet.sign(prepared);
-  const tx = await client.submitAndWait(signed.tx_blob);
-
-  return { 
-    success: tx.result.meta.TransactionResult === "tesSUCCESS",
-    result: tx.result
-  };
 };
 
-/**
- * Cancels the escrow (only works after the deadline has passed).
- */
-export const cancelGigEscrow = async (client, seed, details) => {
-  const { ownerAddress, sequence, isMock } = details;
+export const getGigEscrows = async (accountAddress) => {
+  const client = await getClient();
 
-  if (isMock) {
-    await new Promise(res => setTimeout(res, 800));
-    return { success: true };
+  try {
+    console.log("Scanning ledger for escrows..."); 
+
+    const response = await client.request({
+      command: "account_objects",
+      account: accountAddress,
+      type: "escrow",
+      ledger_index: "validated"
+    });
+
+    const rawObjects = response.result.account_objects;
+    console.log(`Found ${rawObjects.length} raw objects.`); 
+
+    const enrichedEscrows = [];
+
+    for (const obj of rawObjects) {
+      try {
+        if (obj.PreviousTxnID) {
+          const txResponse = await client.request({
+            command: "tx",
+            transaction: obj.PreviousTxnID
+          });
+
+          // Check all possible places for Sequence
+          const correctSequence = 
+            txResponse.result.Sequence || 
+            txResponse.result.tx_json?.Sequence ||
+            obj.Sequence; 
+
+          if (correctSequence) {
+            enrichedEscrows.push({
+              sequence: correctSequence,
+              amount: Number(obj.Amount) / 1000000,
+              destination: obj.Destination,
+              owner: obj.Account,
+              condition: obj.Condition,
+              finishAfter: obj.FinishAfter, 
+              cancelAfter: obj.CancelAfter
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to lookup tx for escrow:", obj, err);
+      }
+    }
+
+    return enrichedEscrows;
+
+  } catch (error) {
+    console.error("Fetch Escrows Error:", error);
+    return [];
+  } finally {
+    await client.disconnect();
   }
-
-  const wallet = Wallet.fromSeed(seed);
-  const prepared = await client.autofill({
-    TransactionType: "EscrowCancel",
-    Account: wallet.address,
-    Owner: ownerAddress,
-    OfferSequence: Number(sequence),
-  });
-
-  const signed = wallet.sign(prepared);
-  const tx = await client.submitAndWait(signed.tx_blob);
-
-  return { success: tx.result.meta.TransactionResult === "tesSUCCESS" };
 };

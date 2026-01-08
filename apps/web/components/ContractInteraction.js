@@ -22,10 +22,11 @@ export function ContractInteraction() {
         sequence = Math.floor(Math.random() * 100000);
         await new Promise(res => setTimeout(res, 800)); 
       } else {
-        const result = await createGigEscrow(client, seed, {
-          amount: formData.amount,
-          destination: formData.freelancer,
-          condition: condition,
+        const result = await createGigEscrow(clientSecret, {
+          amount: amount,
+          destination: freelancerAddress,
+          condition: conditionHex, // Generated from generateEscrowKeys()
+          deadlineInSeconds: 3600 // 1 hour expiry
         });
         sequence = result.sequence; // Captured from tx_json.Sequence
       }
