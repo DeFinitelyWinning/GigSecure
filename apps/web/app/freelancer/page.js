@@ -18,7 +18,7 @@ export default function FreelancerPage() {
       <main className="mx-auto max-w-6xl px-4 py-6 grid grid-cols-1 lg:grid-cols-[1.1fr_minmax(0,1fr)] gap-6">
         <section>
           <div className="mb-3">
-            <h1 className="text-xl font-semibold">Freelancer dashboard</h1>
+            <h1 className="header-machina text-x1 mb-1">Freelancer dashboard</h1>
             <p className="text-xs text-slate-400">
               See gigs funded for you and unlock payment with the secret.
             </p>
