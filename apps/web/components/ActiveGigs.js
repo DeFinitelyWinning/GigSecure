@@ -1,43 +1,52 @@
 "use client";
-import React, { useState, useEffect } from 'react';
 
-export default function ActiveGigs() {
-  const [gigs, setGigs] = useState([]);
+import { useState } from "react";
+import EscrowCard from "./EscrowCard";
 
-  // Load all gigs from localStorage on component mount
-  useEffect(() => {
-    const savedGigs = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key.startsWith('gig_')) {
-        savedGigs.push(JSON.parse(localStorage.getItem(key)));
-      }
-    }
-    setGigs(savedGigs);
-  }, []);
+const MOCK_ESCROWS = [
+  {
+    id: "1",
+    title: "Landing Page Design",
+    amountXrp: 67,
+    destination: "rB3...9FQ2",
+    client: "rCL...1234",
+    status: "PENDING",
+    createdAt: "07 Jan 2026, 21:15",
+    expiresInMinutes: 102,
+  },
+  {
+    id: "2",
+    title: "Bug-fix Sprint",
+    amountXrp: 9873,
+    destination: "rPZ...K55D",
+    client: "rCL...1234",
+    status: "PAID",
+    createdAt: "07 Jan 2026, 21:15",
+    expiresInMinutes: 102,
+  },
+];
 
-  if (gigs.length === 0) return null;
+export default function ActiveGigs({ role = "client", onSelectEscrow }) {
+  const [escrows] = useState(MOCK_ESCROWS);
 
   return (
-    <div className="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-      <h2 className="text-xl font-bold mb-4">Active Gig Contracts (Simulated)</h2>
-      <div className="space-y-4">
-        {gigs.map((gig) => (
-          <div key={gig.sequence} className="p-4 bg-white shadow-sm rounded border flex justify-between items-center">
-            <div>
-              <p className="font-mono text-sm text-blue-600">Sequence: {gig.sequence}</p>
-              <p className="text-gray-700">Amount: <strong>{gig.amount} XRP</strong></p>
-              <p className="text-xs text-gray-400 italic mt-1">Condition: {gig.condition.substring(0, 30)}...</p>
-            </div>
-            <button 
-              onClick={() => alert(`Release Key (Fulfillment):\n${gig.fulfillment}`)}
-              className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700"
-            >
-              Reveal Release Key
-            </button>
-          </div>
-        ))}
+    <div className="space-y-3">
+      {/* search bar */}
+      <div className="mb-2">
+        <input
+          placeholder="Search"
+          className="w-full rounded-full bg-slate-900 border border-slate-700 px-3 py-1.5 text-xs"
+        />
       </div>
+
+      {escrows.map((e) => (
+        <EscrowCard
+          key={e.id}
+          escrow={e}
+          role={role}
+          onSelect={onSelectEscrow}
+        />
+      ))}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import { generateEscrowKeys, createGigEscrow } from '../lib/xrpl/escrow';
-import { useWalletManager } from '../hooks/useWalletManager';
+import useWalletManager from '../hooks/useWalletManager';
 
 export function ContractInteraction() {
   const { wallet, client } = useWalletManager(); // Accesses connected wallet from your provider
