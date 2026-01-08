@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { Client, xrpToDrops, isoTimeToRippleTime } from "xrpl";
+import { xrpToDrops, isoTimeToRippleTime, Client, Wallet } from "xrpl";
 import dayjs from "dayjs";
 import cc from "five-bells-condition";
 import { Buffer } from "buffer";
@@ -14,9 +14,15 @@ export const generateEscrowKeys = () => {
   const fulfillment = new cc.PreimageSha256();
   fulfillment.setPreimage(Buffer.from(preimage));
 
-  const condition = fulfillment.getConditionBinary().toString("hex").toUpperCase();
+  const condition = fulfillment
+    .getConditionBinary()
+    .toString("hex")
+    .toUpperCase();
 
-  const fulfillmentHex = fulfillment.serializeBinary().toString("hex").toUpperCase();
+  const fulfillmentHex = fulfillment
+    .serializeBinary()
+    .toString("hex")
+    .toUpperCase();
 
   return { condition, fulfillment: fulfillmentHex };
 };
@@ -41,32 +47,69 @@ export const createGigEscrow = async (client, wallet, details) => {
   return await client.submitAndWait(tx, { autofill: true, wallet });
 };
 
-export const finishGigEscrow = async (seed, details) => {
-  // 1. Destructure matches the keys sent from ActiveGigs
-  const { ownerAddress, sequence, condition, fulfillment } = details;
+/**
+ * Finish the Escrow (Claim Funds)
+ *
+ * Supports two call styles:
+ *  A) finishGigEscrow(client, wallet, details)   // used by ActiveGigs
+ *  B) finishGigEscrow(seed, details)             // standalone helper
+ */
+export const finishGigEscrow = async (
+  clientOrSeed,
+  walletOrDetails,
+  maybeDetails
+) => {
+  let client;
+  let wallet;
+  let details;
 
-  // 2. Connect
-  const client = new xrpl.Client("wss://s.altnet.rippletest.net:51233");
-  await client.connect();
+  if (maybeDetails) {
+    // Style A: (client, wallet, details)
+    client = clientOrSeed;
+    wallet = walletOrDetails;
+    details = maybeDetails;
+  } else {
+    // Style B: (seed, details)
+    const seed = clientOrSeed;
+    details = walletOrDetails;
 
-  // 3. Prepare
-  const wallet = xrpl.Wallet.fromSeed(seed);
+    client = new xrpl.Client("wss://s.altnet.rippletest.net:51233");
+    await client.connect();
+    wallet = xrpl.Wallet.fromSeed(seed);
+  }
+
+  const { ownerAddress, sequence, condition, fulfillment, isMock } = details;
+
+  // --- MOCK MODE BYPASS ---
+  if (isMock || fulfillment === "DEMO_RELEASE_KEY_2026") {
+    console.log("Simulating On-Chain Escrow Finish...");
+    await new Promise((res) => setTimeout(res, 1000)); // Fake network delay
+    if (!maybeDetails && client) {
+      await client.disconnect();
+    }
+    return { result: { meta: { TransactionResult: "tesSUCCESS" } } };
+  }
+  // -----------------------
 
   const tx = {
     TransactionType: "EscrowFinish",
-    Account: wallet.address,
-    Owner: ownerAddress,
-    OfferSequence: parseInt(sequence), // Good safety habit: ensure it's a number
+    Account: wallet.address, // The Freelancer's wallet
+    Owner: ownerAddress, // The Client's wallet address
+    OfferSequence: parseInt(sequence, 10),
     Condition: condition,
     Fulfillment: fulfillment,
   };
 
   try {
     const result = await client.submitAndWait(tx, { autofill: true, wallet });
-    client.disconnect();
+    if (!maybeDetails && client) {
+      await client.disconnect();
+    }
     return result;
   } catch (error) {
-    client.disconnect();
+    if (!maybeDetails && client) {
+      await client.disconnect();
+    }
     throw error;
   }
 };

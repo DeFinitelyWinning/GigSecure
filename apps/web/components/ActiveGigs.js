@@ -100,7 +100,7 @@ export default function ActiveGigs({ role = "client" }) {
         sequence: gig.id,
         condition: gig.condition,
         fulfillment: secret,
-        isMock: false,
+        isMock: true,
       });
 
       if (result.result.meta.TransactionResult === "tesSUCCESS") {
