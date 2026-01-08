@@ -88,6 +88,10 @@ This application uses **XRPL Escrows** to hold funds cryptographically. The fund
 - **Arbiter System:** Adding a third-party mediator multisig for dispute resolution.
 - **Mainnet Launch:** Transitioning from Testnet to the real XRP Ledger.
 
+## 🙌 Acknowledgements
+- **Original Template:** [Scaffold-XRP](https://www.google.com/search?q=https://github.com/Start-on-XRPL/scaffold-xrp).
+- **XRPL Commons:** For documentation and tooling.
+
 ## 👥 Contributors
 
 - **Hasan Ahmed Nasif** - _Developer_
