@@ -3,6 +3,7 @@ import { Client, xrpToDrops, isoTimeToRippleTime } from "xrpl";
 import dayjs from "dayjs";
 import cc from "five-bells-condition";
 import { Buffer } from "buffer";
+import * as xrpl from "xrpl";
 
 /**
  * Generates a Condition (Lock) and Fulfillment (Key)
@@ -40,31 +41,34 @@ export const createGigEscrow = async (client, wallet, details) => {
   return await client.submitAndWait(tx, { autofill: true, wallet });
 };
 
-/**
- * Finish the Escrow (Claim Funds)
- */
-export const finishGigEscrow = async (client, wallet, details) => {
-  const { ownerAddress, sequence, condition, fulfillment, isMock } = details;
+export const finishGigEscrow = async (seed, details) => {
+  // 1. Destructure matches the keys sent from ActiveGigs
+  const { ownerAddress, sequence, condition, fulfillment } = details;
 
-  // --- MOCK MODE BYPASS ---
-  if (isMock || fulfillment === "DEMO_RELEASE_KEY_2026") {
-    console.log("Simulating On-Chain Escrow Finish...");
-    await new Promise((res) => setTimeout(res, 1000)); // Fake network delay
-    return { result: { meta: { TransactionResult: "tesSUCCESS" } } };
-  }
-  // -----------------------
+  // 2. Connect
+  const client = new xrpl.Client("wss://s.altnet.rippletest.net:51233");
+  await client.connect();
 
-  // Real XRPL Transaction
+  // 3. Prepare
+  const wallet = xrpl.Wallet.fromSeed(seed);
+
   const tx = {
     TransactionType: "EscrowFinish",
-    Account: wallet.address, // The Freelancer's wallet
-    Owner: ownerAddress, // The Client's wallet address
-    OfferSequence: sequence,
+    Account: wallet.address,
+    Owner: ownerAddress,
+    OfferSequence: parseInt(sequence), // Good safety habit: ensure it's a number
     Condition: condition,
     Fulfillment: fulfillment,
   };
 
-  return await client.submitAndWait(tx, { autofill: true, wallet });
+  try {
+    const result = await client.submitAndWait(tx, { autofill: true, wallet });
+    client.disconnect();
+    return result;
+  } catch (error) {
+    client.disconnect();
+    throw error;
+  }
 };
 
 /**

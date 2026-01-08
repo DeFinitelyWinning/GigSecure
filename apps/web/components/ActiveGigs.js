@@ -90,11 +90,13 @@ export default function ActiveGigs({ role = "client" }) {
     const secret = prompt("Enter the Secret Key from the Client to unlock these funds:");
     if (!secret) return;
 
-    setClaimingId(gig.uniqueKey); // Use uniqueKey for loading state too
+    setClaimingId(gig.uniqueKey);
     try {
+      // ✅ We pass 'wallet.seed' as the first arg
+      // ✅ We fix the key names in the object to match escrow.js
       const result = await finishGigEscrow(wallet.seed, {
         ownerAddress: gig.owner,
-        offerSequence: gig.id,
+        sequence: gig.id, // CHANGED: from 'offerSequence' to 'sequence'
         condition: gig.condition,
         fulfillment: secret,
       });
@@ -106,6 +108,7 @@ export default function ActiveGigs({ role = "client" }) {
         alert("Claim Failed: " + result.result.meta.TransactionResult);
       }
     } catch (e) {
+      console.error(e); // Log the full error for debugging
       alert("Error: " + e.message);
     } finally {
       setClaimingId(null);
