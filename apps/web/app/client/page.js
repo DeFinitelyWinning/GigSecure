@@ -54,6 +54,7 @@ export default function ClientPage() {
         mode="createEscrow" // Hardcoded since we don't need 'connectWallet' mode anymore
         wallet={wallet}
         onClose={closePanel}
+        onAfterSubmit={() => window.location.reload()}
       />
     </div>
   );

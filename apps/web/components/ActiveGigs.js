@@ -27,12 +27,13 @@ export default function ActiveGigs({ role = "client" }) {
         });
 
         formattedGigs = response.result.account_objects.map((escrow) => {
-          const savedSecrets = JSON.parse(localStorage.getItem("gig_secrets") || "{}");
+          const savedSecrets = JSON.parse(
+            localStorage.getItem("gig_secrets") || "{}"
+          );
           return {
-            // UNIQUE KEY FIX: Use the Ledger Object Index (Hex string)
             uniqueKey: escrow.index,
             id: escrow.Sequence,
-            amount: parseInt(escrow.Amount) / 1000000,
+            amount: parseInt(escrow.Amount, 10) / 1000000,
             destination: escrow.Destination,
             owner: escrow.Account,
             condition: escrow.Condition,
@@ -41,7 +42,6 @@ export default function ActiveGigs({ role = "client" }) {
           };
         });
       }
-
       // --- LOGIC 2: FREELANCER (Show Escrows Sent TO Me) ---
       else {
         const response = await client.request({
@@ -55,14 +55,15 @@ export default function ActiveGigs({ role = "client" }) {
         const txs = response.result.transactions;
 
         const incomingEscrows = txs.filter(
-          (t) => t.tx.TransactionType === "EscrowCreate" && t.tx.Destination === wallet.address
+          (t) =>
+            t.tx.TransactionType === "EscrowCreate" &&
+            t.tx.Destination === wallet.address
         );
 
         formattedGigs = incomingEscrows.map((t) => ({
-          // UNIQUE KEY FIX: Use the Transaction Hash
           uniqueKey: t.hash,
           id: t.tx.Sequence,
-          amount: parseInt(t.tx.Amount) / 1000000,
+          amount: parseInt(t.tx.Amount, 10) / 1000000,
           destination: t.tx.Destination,
           owner: t.tx.Account,
           condition: t.tx.Condition,
@@ -79,7 +80,6 @@ export default function ActiveGigs({ role = "client" }) {
     }
   };
 
-  // Add dependencies to prevent stale closures
   useEffect(() => {
     if (isConnected && client && wallet) {
       fetchGigs();
@@ -87,106 +87,111 @@ export default function ActiveGigs({ role = "client" }) {
   }, [isConnected, client, wallet, role]);
 
   const handleClaim = async (gig) => {
-    const secret = prompt("Enter the Secret Key from the Client to unlock these funds:");
+    const secret = prompt(
+      "Enter the Secret Key from the Client to unlock these funds:"
+    );
     if (!secret) return;
 
     setClaimingId(gig.uniqueKey);
+
     try {
-      // ✅ We pass 'wallet.seed' as the first arg
-      // ✅ We fix the key names in the object to match escrow.js
-      const result = await finishGigEscrow(wallet.seed, {
+      const result = await finishGigEscrow(client, wallet, {
         ownerAddress: gig.owner,
-        sequence: gig.id, // CHANGED: from 'offerSequence' to 'sequence'
+        sequence: gig.id,
         condition: gig.condition,
         fulfillment: secret,
+        isMock: false,
       });
 
       if (result.result.meta.TransactionResult === "tesSUCCESS") {
         alert("Success! Funds claimed to your wallet.");
-        fetchGigs();
+
+        // Remove claimed escrow from local list so it no longer shows as Incoming
+        setGigs((prev) => prev.filter((g) => g.uniqueKey !== gig.uniqueKey));
+        // or, to mark as completed instead:
+        // setGigs((prev) =>
+        //   prev.map((g) =>
+        //     g.uniqueKey === gig.uniqueKey ? { ...g, status: "Completed" } : g
+        //   )
+        // );
       } else {
         alert("Claim Failed: " + result.result.meta.TransactionResult);
       }
     } catch (e) {
-      console.error(e); // Log the full error for debugging
+      console.error(e);
       alert("Error: " + e.message);
     } finally {
       setClaimingId(null);
     }
   };
 
-  if (!isConnected)
-    return <div className="text-slate-500 text-sm italic">Connect wallet to view gigs.</div>;
-  if (loading)
-    return <div className="text-slate-400 text-sm animate-pulse">Scanning XRPL Ledger...</div>;
-  if (gigs.length === 0)
+  if (!isConnected) {
     return (
-      <div className="text-slate-500 text-sm p-4 border border-dashed border-slate-800 rounded">
-        No active gigs found.
+      <div className="text-slate-500 text-sm">
+        Connect your XRPL wallet to view active gigs.
       </div>
     );
+  }
+
+  if (loading) {
+    return (
+      <div className="text-slate-400 text-sm">Loading active gigs from XRPL…</div>
+    );
+  }
+
+  if (!loading && gigs.length === 0) {
+    return (
+      <div className="text-slate-500 text-sm">
+        No active gigs found on the ledger for this account.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {gigs.map((gig) => (
+      {gigs.map((gig, idx) => (
         <div
-          key={gig.uniqueKey} // <--- THIS IS THE FIX (Using unique hash/index)
+          key={gig.uniqueKey ?? `${gig.id}-${idx}`}
           className="bg-[#111] border border-slate-800 rounded-xl p-5 relative overflow-hidden group"
         >
-          {/* Badge */}
-          <div
-            className={`absolute top-0 right-0 text-[10px] font-bold px-3 py-1 rounded-bl-lg
-            ${role === "client" ? "bg-amber-500/10 text-amber-500" : "bg-blue-500/10 text-blue-500"}`}
-          >
-            {role === "client" ? "OUTGOING" : "INCOMING"}
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs uppercase tracking-wide text-slate-400">
+              {role === "client" ? "Freelancer" : "Client (Owner)"}
+            </span>
+            <span className="text-xs px-2 py-1 rounded-full bg-slate-800 text-slate-200">
+              {gig.status}
+            </span>
           </div>
 
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h3 className="text-slate-100 font-bold text-lg">Gig #{gig.id}</h3>
-              <p className="text-slate-500 text-xs uppercase tracking-wider mt-1">
-                {role === "client" ? "Freelancer" : "Client (Owner)"}
-              </p>
-              <p className="text-slate-300 font-mono text-xs break-all">
-                {role === "client" ? gig.destination : gig.owner}
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-white">
-                {gig.amount} <span className="text-sm text-slate-500 font-normal">XRP</span>
-              </div>
-            </div>
+          <div className="text-sm text-slate-200 mb-2">
+            {role === "client" ? gig.destination : gig.owner}
           </div>
 
-          {/* CLIENT VIEW */}
+          <div className="text-xs text-slate-400 mb-2">
+            Amount:{" "}
+            <span className="text-slate-100 font-mono">{gig.amount} XRP</span>
+          </div>
+
           {role === "client" && (
-            <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800/50">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] uppercase font-bold text-slate-500">Secret Key</span>
-                {gig.secret && (
-                  <button
-                    onClick={() => navigator.clipboard.writeText(gig.secret)}
-                    className="text-[10px] text-blue-400 hover:text-blue-300"
-                  >
-                    Copy
-                  </button>
-                )}
+            <div className="mt-2">
+              <div className="text-[10px] uppercase text-slate-500 mb-1">
+                Secret Key on this device
               </div>
-              <code className="block w-full overflow-hidden text-ellipsis font-mono text-xs text-emerald-400/90">
+              <div className="bg-black/40 border border-slate-800 rounded p-2 text-[10px] text-slate-300 break-all">
                 {gig.secret || "Key not found on this device"}
-              </code>
+              </div>
             </div>
           )}
 
-          {/* FREELANCER VIEW */}
-          {role === "freelancer" && (
-            <div className="mt-4 pt-4 border-t border-slate-800">
+          {role !== "client" && (
+            <div className="mt-3">
               <button
-                onClick={() => handleClaim(gig)}
+                type="button"
                 disabled={claimingId === gig.uniqueKey}
-                className="w-full bg-emerald-600/20 text-emerald-400 border border-emerald-600/50 py-2 rounded text-xs font-bold hover:bg-emerald-600 hover:text-white transition flex justify-center items-center gap-2"
+                onClick={() => handleClaim(gig)}
+                className="text-xs px-3 py-1 rounded bg-emerald-500 text-black font-semibold hover:bg-emerald-400 disabled:bg-slate-600 disabled:text-slate-300"
               >
-                {claimingId === gig.uniqueKey ? "Unlocking Funds..." : "💰 Unlock Funds"}
+                {claimingId === gig.uniqueKey ? "Claiming..." : "Claim Escrow"}
               </button>
             </div>
           )}
