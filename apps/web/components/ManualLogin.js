@@ -49,11 +49,20 @@ export default function ManualLogin({ onClose }) {
 
       <div className="mt-4 text-center">
         <a
-          href="https://xrpl.org/resources/dev-tools/xrp-faucets"
+          href="https://xaman.app/"
           target="_blank"
           className="text-xs text-slate-500 hover:text-blue-400 underline"
         >
           Need a wallet? Get one here ↗
+        </a>
+      </div>
+      <div className="mt-4 text-center">
+        <a
+          href="https://xrpl.org/resources/dev-tools/xrp-faucets"
+          target="_blank"
+          className="text-xs text-slate-500 hover:text-blue-400 underline"
+        >
+          Make a test wallet here ↗
         </a>
       </div>
     </div>

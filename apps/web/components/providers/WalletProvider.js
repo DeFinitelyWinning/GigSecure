@@ -11,18 +11,12 @@ export function WalletProvider({ children }) {
   const [balance, setBalance] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // NEW: A simple counter. When this changes, other components know to re-fetch data.
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const triggerRefresh = useCallback(() => {
     setRefreshTrigger((prev) => prev + 1);
   }, []);
 
-  // ... (Keep your existing showStatus, addEvent, connectWallet, disconnectWallet logic here exactly as before) ...
-  // Ensure connectWallet and disconnectWallet are included here (I'm omitting them for brevity, but keep them!)
-
-  // --- CONNECT WALLET LOGIC (Paste your previous connectWallet/disconnectWallet code here) ---
   const connectWallet = useCallback(async (seed) => {
     setIsLoading(true);
     try {
@@ -32,19 +26,23 @@ export function WalletProvider({ children }) {
       await _client.connect();
       setClient(_client);
       
-      // Initial Balance Check
       const response = await _client.request({
         command: "account_info",
         account: _wallet.address,
         ledger_index: "validated",
       });
+      
       const drops = response.result.account_data.Balance;
       setBalance((parseInt(drops) / 1000000).toFixed(2));
-      localStorage.setItem("xrpl_seed", seed);
+
+      // ✅ CHANGE 1: Use sessionStorage instead of localStorage
+      // This persists on refresh, but WIPES when tab is closed.
+      sessionStorage.setItem("xrpl_seed", seed);
+      
       setIsConnected(true);
     } catch (error) {
       console.error(error);
-      localStorage.removeItem("xrpl_seed");
+      sessionStorage.removeItem("xrpl_seed");
     } finally {
       setIsLoading(false);
     }
@@ -52,14 +50,20 @@ export function WalletProvider({ children }) {
 
   const disconnectWallet = async () => {
     if (client) await client.disconnect();
-    localStorage.removeItem("xrpl_seed");
+    
+    // ✅ CHANGE 2: Clear session on explicit disconnect
+    sessionStorage.removeItem("xrpl_seed");
+    
     setClient(null);
     setWallet(null);
     setIsConnected(false);
   };
 
   useEffect(() => {
-    const savedSeed = localStorage.getItem("xrpl_seed");
+    // ✅ CHANGE 3: Check sessionStorage on load
+    // Note: This only works if the tab is still open. 
+    // If they closed and reopened the tab, they must log in again (Good for security).
+    const savedSeed = sessionStorage.getItem("xrpl_seed");
     if (savedSeed && !isConnected) connectWallet(savedSeed);
   }, []);
 
@@ -73,8 +77,8 @@ export function WalletProvider({ children }) {
         disconnectWallet,
         isConnected,
         isLoading,
-        refreshTrigger, // <--- EXPOSE THIS
-        triggerRefresh, // <--- EXPOSE THIS
+        refreshTrigger,
+        triggerRefresh,
       }}
     >
       {children}
