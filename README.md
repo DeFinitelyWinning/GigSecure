@@ -12,9 +12,23 @@
 
 This application uses **XRPL Escrows** to hold funds cryptographically. The funds are locked on the blockchain and can only be released when the Client provides a "Secret Key" (Fulfillment) to the Freelancer, signifying that the work has been approved.
 
+## 💼 Business Potential & Market Fit
+
+GigSecure addresses critical inefficiencies in the $455B gig economy.
+- **Disrupting the 20% Fee Model:** Traditional platforms like Upwork or Fiverr charge 10-20% commission. By utilizing the XRPL, our platform operates with transaction fees of fractions of a cent (<$0.0001), allowing freelancers to keep **100%** of their earnings.
+- **Solving Cross-Border Payments:** International freelancers often lose 3-5% in forex conversion and wait days for wire transfers. XRPL settles in 3-5 seconds with built-in liquidity, making this platform ideal for a global workforce.
+- **Trustless Architecture:** We eliminate the need for a central authority to hold funds. This reduces liability and operational costs, allowing for a lean, scalable business model.
+
+## 💰 Future Revenue Model
+
+While the core protocol is open, revenue can be generated through:
+- **Arbiter Services:** A premium dispute resolution service where a third-party keyholder helps resolve conflicts for a small fee (not in MVP).
+- **Featured Listings:** Clients pay a small amount in XRP to boost their gig visibility (not in MVP).
+- **Identity Verification:** Premium "Verified Freelancer" badges backed by on-chain reputation (not in MVP).
+
 ## ✨ Key Features
 
-- **Create Gigs:** Clients can post jobs with a specific reward (in XRP).
+- **Create Escrow:** Clients can post jobs with a specific reward (in XRP).
 - **Secure Escrow:** Funds are locked on the XRP Ledger immediately upon gig creation—proving the client has the money.
 - **Crypto-Condition Logic:** Utilizing SHA-256 pre-image verification (Condition/Fulfillment) to secure payments.
 - **Non-Custodial:** The platform never holds user keys; users sign transactions directly via their local wallet seed.
