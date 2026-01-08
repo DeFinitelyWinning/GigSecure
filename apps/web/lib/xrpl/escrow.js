@@ -1,99 +1,129 @@
 // @ts-nocheck
-import { Client, xrpToDrops, isoTimeToRippleTime } from 'xrpl';
+import { Client, Wallet, xrpToDrops, isoTimeToRippleTime } from 'xrpl';
 import dayjs from 'dayjs';
 import cc from 'five-bells-condition';
 import { Buffer } from 'buffer';
 
+
+
 /**
- * Generates a Condition (Lock) and Fulfillment (Key)
+ * Validates if a fulfillment matches a condition locally.
+ * This prevents the "any key works" bug in your UI logic.
+ */
+export const verifyFulfillmentLocal = (conditionHex, fulfillmentHex) => {
+  try {
+    const fulfillment = cc.Fulfillment.fromBinary(Buffer.from(fulfillmentHex, 'hex'));
+    const generatedCondition = fulfillment.getConditionBinary().toString('hex').toUpperCase();
+    return generatedCondition === conditionHex.toUpperCase();
+  } catch (e) {
+    return false;
+  }
+};
+
+
+/**
+ * Generates a Condition (Lock) and Fulfillment (Key) using browser-native crypto.
  */
 export const generateEscrowKeys = () => {
-  // Browser-safe random bytes
   const preimage = window.crypto.getRandomValues(new Uint8Array(32));
   const fulfillment = new cc.PreimageSha256();
   fulfillment.setPreimage(Buffer.from(preimage));
 
-  const condition = fulfillment
-    .getConditionBinary()
-    .toString('hex')
-    .toUpperCase();
-
-  const fulfillmentHex = fulfillment
-    .serializeBinary()
-    .toString('hex')
-    .toUpperCase();
-
-  return { condition, fulfillment: fulfillmentHex };
+  return {
+    condition: fulfillment.getConditionBinary().toString('hex').toUpperCase(),
+    fulfillment: fulfillment.serializeBinary().toString('hex').toUpperCase()
+  };
 };
 
 /**
- * Creates the Escrow on the XRP Ledger
+ * Creates the Escrow on-chain.
  */
-export const createGigEscrow = async (client, wallet, details) => {
-  const { amount, destination, condition, finishAfterSeconds = 3600 } = details;
+export const createGigEscrow = async (client, seed, details) => {
+  const { amount, destination, condition, deadlineInSeconds = 3600 } = details;
+  const wallet = Wallet.fromSeed(seed);
   
-  // Ripple Epoch time calculation
-  const finishAfter = dayjs().add(finishAfterSeconds, 'seconds').toISOString();
+  // XRPL requires Ripple Epoch time for CancelAfter
+  const cancelAfterRipple = isoTimeToRippleTime(
+    dayjs().add(deadlineInSeconds, 'seconds').toISOString()
+  );
 
-  const tx = {
-    TransactionType: 'EscrowCreate',
+  const prepared = await client.autofill({
+    TransactionType: "EscrowCreate",
     Account: wallet.address,
     Amount: xrpToDrops(amount),
     Destination: destination,
-    FinishAfter: isoTimeToRippleTime(finishAfter),
+    CancelAfter: cancelAfterRipple,
     Condition: condition,
-  };
+  });
 
-  return await client.submitAndWait(tx, { autofill: true, wallet });
+  const signed = wallet.sign(prepared);
+  const tx = await client.submitAndWait(signed.tx_blob);
+
+  // Return the sequence number of this specific transaction
+  return {
+    sequence: tx.result.Sequence || tx.result.tx_json.Sequence,
+    rawResponse: tx
+  };
 };
 
 /**
- * Finish the Escrow (Claim Funds)
+ * Claims the funds using the fulfillment key.
  */
-export const finishGigEscrow = async (client, wallet, details) => {
+export const finishGigEscrow = async (client, seed, details) => {
   const { ownerAddress, sequence, condition, fulfillment, isMock } = details;
 
-  // --- MOCK MODE BYPASS ---
-  if (isMock || fulfillment === "DEMO_RELEASE_KEY_2026") {
-    console.log("Simulating On-Chain Escrow Finish...");
-    await new Promise(res => setTimeout(res, 1000)); // Fake network delay
-    return { result: { meta: { TransactionResult: "tesSUCCESS" } } };
+  // LOGIC FIX: Explicitly check the key even in Mock Mode
+  const isValid = verifyFulfillmentLocal(condition, fulfillment);
+  
+  if (!isValid) {
+    throw new Error("Cryptographic Mismatch: The provided key does not open this escrow.");
   }
-  // -----------------------
 
-  // Real XRPL Transaction
-  const tx = {
-    TransactionType: 'EscrowFinish',
-    Account: wallet.address, // The Freelancer's wallet
-    Owner: ownerAddress,     // The Client's wallet address
-    OfferSequence: sequence,
+  if (isMock) {
+    await new Promise(res => setTimeout(res, 800));
+    return { success: true, method: "MOCK_SUCCESS" };
+  }
+
+  const wallet = Wallet.fromSeed(seed);
+  const prepared = await client.autofill({
+    TransactionType: "EscrowFinish",
+    Account: wallet.address,
+    Owner: ownerAddress,
+    OfferSequence: Number(sequence),
     Condition: condition,
     Fulfillment: fulfillment,
-  };
+  });
 
-  return await client.submitAndWait(tx, { autofill: true, wallet });
+  const signed = wallet.sign(prepared);
+  const tx = await client.submitAndWait(signed.tx_blob);
+
+  return { 
+    success: tx.result.meta.TransactionResult === "tesSUCCESS",
+    raw: tx 
+  };
 };
 
 /**
- * Cancel the Escrow (Refund to Client)
- * Note: On XRPL, this only works if the 'CancelAfter' time has passed.
+ * Cancels the escrow (only works after the deadline has passed).
  */
-export const cancelGigEscrow = async (client, wallet, details) => {
+export const cancelGigEscrow = async (client, seed, details) => {
   const { ownerAddress, sequence, isMock } = details;
 
   if (isMock) {
-    console.log("Simulating On-Chain Escrow Cancellation...");
-    await new Promise(res => setTimeout(res, 1000));
-    return { result: { meta: { TransactionResult: "tesSUCCESS" } } };
+    await new Promise(res => setTimeout(res, 800));
+    return { success: true };
   }
 
-  const tx = {
-    TransactionType: 'EscrowCancel',
+  const wallet = Wallet.fromSeed(seed);
+  const prepared = await client.autofill({
+    TransactionType: "EscrowCancel",
     Account: wallet.address,
-    Owner: ownerAddress, // The account that created the escrow
-    OfferSequence: sequence,
-  };
+    Owner: ownerAddress,
+    OfferSequence: Number(sequence),
+  });
 
-  return await client.submitAndWait(tx, { autofill: true, wallet });
+  const signed = wallet.sign(prepared);
+  const tx = await client.submitAndWait(signed.tx_blob);
+
+  return { success: tx.result.meta.TransactionResult === "tesSUCCESS" };
 };
-

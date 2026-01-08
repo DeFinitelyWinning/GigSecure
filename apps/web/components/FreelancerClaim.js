@@ -1,77 +1,60 @@
 "use client";
-import React, { useState } from "react";
-import { finishGigEscrow } from "../lib/xrpl/escrow";
-import useWalletManager from "../hooks/useWalletManager";
+import React, { useState } from 'react';
+import { finishGigEscrow, verifyFulfillmentLocal } from '../lib/xrpl/escrow';
+import useWalletManager from '../hooks/useWalletManager';
 
 export default function FreelancerClaim() {
-  const { wallet, client } = useWalletManager();
+  const { wallet, client, seed } = useWalletManager();
   const [loading, setLoading] = useState(false);
-  const [claimData, setClaimData] = useState({
-    sequence: "",
-    owner: "",
-    fulfillment: "",
-  });
+  const [claimData, setClaimData] = useState({ sequence: '', owner: '', fulfillment: '' });
 
   const handleClaim = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // If no wallet is connected, we force mock mode for the demo
-      const isMockMode = !wallet;
+      const storedGig = JSON.parse(localStorage.getItem(`gig_${claimData.sequence}`));
+      if (!storedGig) throw new Error("Gig not found.");
 
-      const result = await finishGigEscrow(client, wallet || { address: "rMock..." }, {
+      // CRITICAL LOGIC: Stop the process if the key is wrong
+      const isCorrectKey = verifyFulfillmentLocal(storedGig.condition, claimData.fulfillment);
+      
+      if (!isCorrectKey) {
+        throw new Error("Invalid Fulfillment Key. The hash does not match the on-chain condition.");
+      }
+
+      const result = await finishGigEscrow(client, seed, {
         ownerAddress: claimData.owner,
         sequence: parseInt(claimData.sequence),
-        condition: "", // In a real app, you'd fetch this from the ledger using the sequence
+        condition: storedGig.condition,
         fulfillment: claimData.fulfillment,
-        isMock: isMockMode,
+        isMock: storedGig.isMock
       });
 
-      if (result.result.meta.TransactionResult === "tesSUCCESS") {
-        alert("Success! Funds have been released to your wallet.");
-        // Clear local storage for this gig to show it's "completed"
+      if (result.success) {
+        alert("Success! Payment released.");
         localStorage.removeItem(`gig_${claimData.sequence}`);
       }
     } catch (error) {
-      console.error("Claim failed:", error);
-      alert("Claim failed. Ensure the Fulfillment Key and Sequence are correct.");
+      alert(error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="mt-8 p-6 bg-green-50 rounded-lg border border-green-200 w-full max-w-md">
-      <h2 className="text-xl font-bold mb-4 text-green-800">Freelancer: Claim Payment</h2>
+    <div className="p-6 bg-green-50 rounded-lg border border-green-200 text-black">
+      <h2 className="text-xl font-bold mb-4">Claim Payment</h2>
       <form onSubmit={handleClaim} className="space-y-3">
-        <input
-          type="text"
-          placeholder="Gig Sequence (e.g. 54099)"
-          className="w-full p-2 border rounded"
-          onChange={(e) => setClaimData({ ...claimData, sequence: e.target.value })}
-        />
-        <input
-          type="text"
-          placeholder="Client Wallet Address"
-          className="w-full p-2 border rounded"
-          onChange={(e) => setClaimData({ ...claimData, owner: e.target.value })}
-        />
-        <input
-          type="text"
-          placeholder="Paste Fulfillment Key"
-          className="w-full p-2 border rounded bg-white"
-          onChange={(e) => setClaimData({ ...claimData, fulfillment: e.target.value })}
-        />
-        <button
-          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:bg-gray-400"
-          disabled={loading}
-        >
-          {loading ? "Verifying Secret..." : "Submit Key & Claim XRP"}
+        <input type="text" placeholder="Sequence" className="w-full p-2 border"
+          onChange={(e) => setClaimData({...claimData, sequence: e.target.value})} />
+        <input type="text" placeholder="Client Address" className="w-full p-2 border"
+          onChange={(e) => setClaimData({...claimData, owner: e.target.value})} />
+        <input type="text" placeholder="Fulfillment Key" className="w-full p-2 border"
+          onChange={(e) => setClaimData({...claimData, fulfillment: e.target.value})} />
+        <button className="w-full bg-green-600 text-white py-2 rounded" disabled={loading}>
+          {loading ? "Validating Cryptography..." : "Claim XRP"}
         </button>
-        <p className="text-[10px] text-gray-500 italic text-center">
-          Demo Key: DEMO_RELEASE_KEY_2026
-        </p>
       </form>
     </div>
   );
