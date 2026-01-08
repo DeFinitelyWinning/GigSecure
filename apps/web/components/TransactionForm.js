@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+// ✅ Correct Import Path for Wallet
 import { useWallet } from "./providers/WalletProvider";
+// ✅ Correct Import Path for XRPL Logic
 import { generateEscrowKeys, createGigEscrow } from "../lib/xrpl/escrow";
 
 export function TransactionForm({ onClose }) {
-  // Get wallet and client directly from the global context
-  const { wallet, client, isConnected } = useWallet();
+  // ✅ Get triggerRefresh from context
+  const { wallet, client, isConnected, triggerRefresh } = useWallet();
 
   const [amount, setAmount] = useState("");
   const [destination, setDestination] = useState("");
@@ -27,13 +29,11 @@ export function TransactionForm({ onClose }) {
       }
 
       // 1. Generate the Secret Key (Preimage) and Lock (Condition)
-      // This happens LOCALLY. The secret never leaves this browser yet.
       const keys = generateEscrowKeys();
 
       console.log("Generated Lock:", keys.condition);
 
       // 2. Submit the Escrow Transaction to XRPL
-      // Default expiry is 1 hour (3600s) for the hackathon demo
       const result = await createGigEscrow(client, wallet, {
         amount,
         destination,
@@ -45,16 +45,24 @@ export function TransactionForm({ onClose }) {
 
       if (result.result.meta.TransactionResult === "tesSUCCESS") {
         // 3. Show the Success Screen
-        const jobId = result.result.Sequence;
+        
+        // ✅ FIX: Explicitly grab the Sequence number
+        const jobId = result.result.Sequence; 
+        
+        // Save to LocalStorage
         const currentSecrets = JSON.parse(localStorage.getItem("gig_secrets") || "{}");
         currentSecrets[jobId] = keys.fulfillment; // Save Key using Job ID
         localStorage.setItem("gig_secrets", JSON.stringify(currentSecrets));
 
         setSuccessData({
           secret: keys.fulfillment, // This is the PREIMAGE (Key)
-          jobId: result.result.Sequence, // The Escrow ID
+          jobId: jobId, // The Escrow ID
           txHash: result.result.hash,
         });
+        
+        // ✅ AUTO-REFRESH: Tell the rest of the app to update!
+        if (triggerRefresh) triggerRefresh();
+
       } else {
         throw new Error("Transaction Failed: " + result.result.meta.TransactionResult);
       }
