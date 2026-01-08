@@ -9,7 +9,7 @@ import { useWallet } from "../../components/providers/WalletProvider";
 
 export default function ClientPage() {
   // CHANGE: Get the wallet from the new context
-  const { wallet } = useWallet();
+  const { wallet, isConnected } = useWallet();
 
   const [panelOpen, setPanelOpen] = useState(false);
 
@@ -36,14 +36,19 @@ export default function ClientPage() {
 
           {/* RIGHT: Action Buttons */}
           <div className="hidden md:flex flex-col items-end justify-center text-xs gap-2">
-            {/* ONLY ONE BUTTON NOW */}
-            <button
-              type="button"
-              onClick={openCreateEscrow}
-              className="text-slate-100 hover:underline"
-            >
-              Create escrow
-            </button>
+            {isConnected ? (
+              <button
+                type="button"
+                onClick={openCreateEscrow}
+                className="text-slate-100 hover:underline hover:text-white transition-colors"
+              >
+                + Create escrow
+              </button>
+            ) : (
+              <span className="text-slate-600 italic cursor-not-allowed">
+                Connect wallet to create an escrow
+              </span>
+            )}
           </div>
         </section>
       </main>
