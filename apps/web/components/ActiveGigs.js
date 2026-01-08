@@ -9,7 +9,7 @@ export default function ActiveGigs({ role, onSelectEscrow }) {
   
   const [gigs, setGigs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchAddress, setSearchAddress] = useState(""); // For Freelancer to search Client
+  const [searchAddress, setSearchAddress] = useState(""); 
 
   // 1. CLIENT: Fetch my own escrows automatically
   useEffect(() => {
@@ -18,29 +18,23 @@ export default function ActiveGigs({ role, onSelectEscrow }) {
     }
   }, [role, isConnected, wallet]);
 
-  // Helper to check for saved key in LocalStorage
   const getSavedKey = (sequence) => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem(`escrow_key_${sequence}`);
   };
 
-  // Helper to fetch and filter
   const fetchGigs = async (targetAddress) => {
     setLoading(true);
     try {
-      // Fetch RAW data from the ledger
       const allEscrows = await getGigEscrows(targetAddress);
       
       if (role === "client") {
-        // Show all escrows I created
         setGigs(allEscrows);
       } else if (role === "freelancer") {
-        // FILTER: Only show escrows meant for ME (the logged-in freelancer)
         if (wallet?.address) {
           const myGigs = allEscrows.filter(g => g.destination === wallet.address);
           setGigs(myGigs);
         } else {
-            // If not logged in, just show them all (or show none)
             setGigs(allEscrows);
         }
       }
@@ -52,7 +46,6 @@ export default function ActiveGigs({ role, onSelectEscrow }) {
     }
   };
 
-  // 2. FREELANCER: Handle manual search
   const handleFreelancerSearch = (e) => {
     e.preventDefault();
     if (!searchAddress) return;
@@ -61,8 +54,7 @@ export default function ActiveGigs({ role, onSelectEscrow }) {
 
   return (
     <div className="space-y-4">
-      
-      {/* FREELANCER SEARCH BAR */}
+      {/* SEARCH BAR */}
       {role === "freelancer" && (
         <form onSubmit={handleFreelancerSearch} className="flex gap-2 mb-6">
           <input 
@@ -97,6 +89,8 @@ export default function ActiveGigs({ role, onSelectEscrow }) {
 
         {gigs.map((gig) => {
           const savedKey = getSavedKey(gig.sequence);
+          // SECURITY FIX: Only show key if YOU are the owner (Client)
+          const isOwner = wallet && wallet.address === gig.owner;
 
           return (
             <div 
@@ -129,12 +123,10 @@ export default function ActiveGigs({ role, onSelectEscrow }) {
                     {gig.destination === wallet?.address ? "You" : gig.destination.slice(0,8) + "..."}
                     </span>
                 </p>
-                {/* HIDE CONDITION FROM UI, BUT KEEP IN DATA */}
-                {/* <p>Condition: {gig.condition.slice(0, 10)}...</p> */}
                 </div>
 
-                {/* --- RECOVERED KEY SECTION (CLIENT ONLY) --- */}
-                {role === "client" && savedKey && (
+                {/* PRIVACY FIX APPLIED HERE */}
+                {role === "client" && isOwner && savedKey && (
                     <div className="mt-3 pt-3 border-t border-slate-800" onClick={(e) => e.stopPropagation()}>
                         <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Recovered Fulfillment Key</p>
                         <div className="flex gap-2 items-center">
@@ -143,7 +135,7 @@ export default function ActiveGigs({ role, onSelectEscrow }) {
                             </code>
                             <button 
                                 onClick={(e) => {
-                                    e.stopPropagation(); // Prevent clicking the card
+                                    e.stopPropagation(); 
                                     navigator.clipboard.writeText(savedKey);
                                     alert("Key copied to clipboard!");
                                 }}

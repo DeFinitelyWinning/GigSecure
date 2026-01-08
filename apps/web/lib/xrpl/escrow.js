@@ -11,6 +11,10 @@ const getClient = async () => {
   return client;
 };
 
+// ---------------------------------------------------------
+// UTILS
+// ---------------------------------------------------------
+
 export const verifyFulfillmentLocal = (conditionHex, fulfillmentHex) => {
   try {
     const fulfillment = cc.Fulfillment.fromBinary(Buffer.from(fulfillmentHex, 'hex'));
@@ -33,6 +37,10 @@ export const generateEscrowKeys = () => {
   };
 };
 
+// ---------------------------------------------------------
+// CORE FUNCTIONS
+// ---------------------------------------------------------
+
 export const createGigEscrow = async (seed, details) => {
   const client = await getClient();
   
@@ -40,11 +48,29 @@ export const createGigEscrow = async (seed, details) => {
     const { amount, destination, condition, deadlineInSeconds = 3600 } = details;
     const wallet = Wallet.fromSeed(seed);
     
+    console.log("--- DEBUG: STARTING ESCROW CREATION ---");
+
+    // 1. MANUALLY FETCH CORRECT SEQUENCE (Do not trust autofill)
+    const accountInfo = await client.request({
+      command: "account_info",
+      account: wallet.address,
+      ledger_index: "current"
+    });
+    
+    const currentSequence = accountInfo.result.account_data.Sequence;
+    console.log("--- DEBUG: REAL ACCOUNT SEQUENCE ---", currentSequence);
+
+    // SAFETY CHECK: If this is > 1 million, we stop immediately.
+    if (currentSequence > 1000000) {
+        throw new Error(`ABORT: Fetched Sequence is a Ledger Index! (${currentSequence})`);
+    }
+
+    // Calculate Timings
     const expiryDate = new Date();
     expiryDate.setSeconds(expiryDate.getSeconds() + deadlineInSeconds);
     const cancelAfterRipple = isoTimeToRippleTime(expiryDate.toISOString());
 
-    // 1. Prepare
+    // 2. CONSTRUCT TRANSACTION WITH FORCED SEQUENCE
     const tx = {
       TransactionType: "EscrowCreate",
       Account: wallet.address,
@@ -52,30 +78,34 @@ export const createGigEscrow = async (seed, details) => {
       Destination: destination,
       CancelAfter: cancelAfterRipple,
       Condition: condition,
+      Sequence: currentSequence, // <--- WE FORCE THIS
     };
 
-    // 2. Autofill with explicit buffer to prevent timeouts
+    // 3. Autofill (will fill Fee, but respect our Sequence)
     const prepared = await client.autofill(tx);
-    const ledgerIndex = await client.getLedgerIndex();
-    prepared.LastLedgerSequence = ledgerIndex + 50; // Give it 50 ledgers (~3 mins) buffer
-
-    // 3. Sign & Submit
-    const signed = wallet.sign(prepared);
-    const result = await client.submitAndWait(signed.tx_blob);
     
-    // 4. Robust Sequence Extraction
-    const sequence = result.result.Sequence || result.result.tx_json?.Sequence;
-
-    if (!sequence) {
-      throw new Error("Transaction succeeded but Sequence number could not be found.");
+    // Double check prepared sequence
+    if (prepared.Sequence > 1000000) {
+         throw new Error("ABORT: Autofill overwrote Sequence with Ledger Index!");
     }
 
+    // 4. Sign and Submit
+    const signed = wallet.sign(prepared);
+    const result = await client.submitAndWait(signed.tx_blob);
+
+    if (result.result.meta.TransactionResult !== "tesSUCCESS") {
+      throw new Error(`Tx Failed: ${result.result.meta.TransactionResult}`);
+    }
+
+    console.log("--- DEBUG: SUCCESS ---");
+    
     return {
       success: true,
-      sequence: sequence,
+      sequence: currentSequence, // Return the number we fetched manually
       txHash: result.result.hash,
       owner: wallet.address
     };
+
   } catch (error) {
     console.error("Create Escrow Error:", error);
     throw error;
@@ -84,58 +114,56 @@ export const createGigEscrow = async (seed, details) => {
   }
 };
 
-export const finishGigEscrow = async (seed, details) => {
-  const client = await getClient();
+export async function finishGigEscrow(secret, { ownerAddress, sequence, fulfillment, condition }) {
+  // FIX: Use 'Client' directly (already imported), not 'xrpl.Client'
+  const client = new Client("wss://s.altnet.rippletest.net:51233"); 
+  await client.connect();
+
+  // FIX: Use 'Wallet' directly (already imported), not 'xrpl.Wallet'
+  const wallet = Wallet.fromSeed(secret);
+
+  // 1. Check if sequence is valid before sending
+  if (!sequence || isNaN(parseInt(sequence))) {
+     throw new Error(`CRITICAL: OfferSequence is missing. Got: ${sequence}`);
+  }
+
+  // 2. Construct the Transaction
+  const tx = {
+    "TransactionType": "EscrowFinish",
+    "Account": wallet.address,       // The Freelancer (You)
+    "Owner": ownerAddress,           // The Client (Creator)
+    "OfferSequence": parseInt(sequence), // The ID of the escrow
+    "Fulfillment": fulfillment       // The key to unlock it
+  };
+
+  // Only add Condition if explicitly provided
+  if (condition) {
+    tx["Condition"] = condition;
+  }
+
+  console.log("Submitting Transaction:", tx);
 
   try {
-    const { ownerAddress, sequence, condition, fulfillment } = details;
-    const wallet = Wallet.fromSeed(seed);
-
-    if (!sequence || isNaN(parseInt(sequence))) {
-      throw new Error(`Invalid Sequence Number: ${sequence}`);
-    }
-
-    // 1. Prepare
-    const tx = {
-      TransactionType: "EscrowFinish",
-      Account: wallet.address, 
-      Owner: ownerAddress,     
-      OfferSequence: parseInt(sequence),
-      Condition: condition,
-      Fulfillment: fulfillment,
-    };
-
-    // 2. Autofill with explicit buffer to prevent timeouts (FIX for temMALFORMED)
     const prepared = await client.autofill(tx);
-    const ledgerIndex = await client.getLedgerIndex();
-    prepared.LastLedgerSequence = ledgerIndex + 50; // Increased buffer
-
-    // 3. Sign & Submit
     const signed = wallet.sign(prepared);
     const result = await client.submitAndWait(signed.tx_blob);
 
     if (result.result.meta.TransactionResult !== "tesSUCCESS") {
-      throw new Error(`Claim Failed: ${result.result.meta.TransactionResult}`);
+      throw new Error(`Ledger Error: ${result.result.meta.TransactionResult}`);
     }
-
-    return { 
-      success: true,
-      txHash: result.result.hash
-    };
+    
+    client.disconnect();
+    return result.result;
   } catch (error) {
-    console.error("Claim Error:", error);
+    client.disconnect();
     throw error;
-  } finally {
-    await client.disconnect();
   }
-};
+}
 
 export const getGigEscrows = async (accountAddress) => {
   const client = await getClient();
 
   try {
-    console.log("Scanning ledger for escrows..."); 
-
     const response = await client.request({
       command: "account_objects",
       account: accountAddress,
@@ -144,38 +172,36 @@ export const getGigEscrows = async (accountAddress) => {
     });
 
     const rawObjects = response.result.account_objects;
-    console.log(`Found ${rawObjects.length} raw objects.`); 
-
     const enrichedEscrows = [];
+
+    console.log(`Found ${rawObjects.length} raw objects. Fetching details...`);
 
     for (const obj of rawObjects) {
       try {
         if (obj.PreviousTxnID) {
+          // Look up the transaction that created this escrow
           const txResponse = await client.request({
             command: "tx",
             transaction: obj.PreviousTxnID
           });
 
-          // Check all possible places for Sequence
-          const correctSequence = 
-            txResponse.result.Sequence || 
-            txResponse.result.tx_json?.Sequence ||
-            obj.Sequence; 
+          // Verify we have a valid sequence
+          const correctSequence = txResponse.result.Sequence;
 
-          if (correctSequence) {
+          if (correctSequence !== undefined) {
             enrichedEscrows.push({
-              sequence: correctSequence,
+              // Normalize keys for frontend
+              sequence: correctSequence, 
               amount: Number(obj.Amount) / 1000000,
               destination: obj.Destination,
               owner: obj.Account,
               condition: obj.Condition,
-              finishAfter: obj.FinishAfter, 
-              cancelAfter: obj.CancelAfter
+              previousTxnId: obj.PreviousTxnID
             });
           }
         }
       } catch (err) {
-        console.warn("Failed to lookup tx for escrow:", obj, err);
+        console.warn("Skipping orphan escrow:", obj.index, err.message);
       }
     }
 

@@ -48,6 +48,13 @@ export default function FreelancerClaim() {
     }
   };
 
+  console.log("DEBUG ESCROW DATA:", { 
+  freelancerSecret, 
+  escrowSeq,     // <--- I bet this is undefined
+  ownerAddress, 
+  fulfillment 
+});
+
   return (
     <div className="bg-slate-900 text-white p-6 rounded-lg shadow-xl">
       <h2 className="text-xl font-bold mb-4 text-emerald-400">Claim Payment</h2>
