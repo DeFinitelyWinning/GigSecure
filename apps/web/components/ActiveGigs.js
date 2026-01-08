@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { cancelGigEscrow } from '../lib/xrpl/escrow';
-import { useWalletManager } from '../hooks/useWalletManager';
+import React, { useState, useEffect } from "react";
+import { cancelGigEscrow } from "../lib/xrpl/escrow";
+import useWalletManager from "../hooks/useWalletManager";
 import EscrowCard from "./EscrowCard";
 
 export default function ActiveGigs({ role = "client", onSelectEscrow }) {
@@ -16,7 +16,7 @@ export default function ActiveGigs({ role = "client", onSelectEscrow }) {
     const savedGigs = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key.startsWith('gig_')) {
+      if (key.startsWith("gig_")) {
         savedGigs.push(JSON.parse(localStorage.getItem(key)));
       }
     }
@@ -29,16 +29,16 @@ export default function ActiveGigs({ role = "client", onSelectEscrow }) {
 
     setLoading(true);
     try {
-      const result = await cancelGigEscrow(client, wallet || { address: 'rMock...' }, {
-        ownerAddress: wallet?.address || 'rMockWalletAddress12345Demo',
+      const result = await cancelGigEscrow(client, wallet || { address: "rMock..." }, {
+        ownerAddress: wallet?.address || "rMockWalletAddress12345Demo",
         sequence: gig.sequence,
-        isMock: gig.isMock
+        isMock: gig.isMock,
       });
 
       if (result.result.meta.TransactionResult === "tesSUCCESS") {
         alert("Escrow Cancelled.");
         localStorage.removeItem(`gig_${gig.sequence}`);
-        setGigs(gigs.filter(g => g.sequence !== gig.sequence));
+        setGigs(gigs.filter((g) => g.sequence !== gig.sequence));
       }
     } catch (error) {
       console.error("Cancellation failed:", error);
@@ -49,15 +49,14 @@ export default function ActiveGigs({ role = "client", onSelectEscrow }) {
   };
 
   // Filter gigs based on teammate's search bar logic
-  const filteredGigs = gigs.filter(g => 
-    g.sequence.toString().includes(searchTerm) || 
-    g.amount.toString().includes(searchTerm)
+  const filteredGigs = gigs.filter(
+    (g) => g.sequence.toString().includes(searchTerm) || g.amount.toString().includes(searchTerm)
   );
 
   return (
     <div className="space-y-3 w-full max-w-2xl">
       <h2 className="text-xl font-bold mb-4">Active Gig Contracts</h2>
-      
+
       {/* Search bar from teammate's UI */}
       <div className="mb-2">
         <input
@@ -82,7 +81,7 @@ export default function ActiveGigs({ role = "client", onSelectEscrow }) {
             amountXrp: gig.amount,
             destination: gig.destination || "Unknown",
             status: gig.isMock ? "MOCK" : "ACTIVE",
-            fulfillment: gig.fulfillment // Passing this so you can still reveal the key
+            fulfillment: gig.fulfillment, // Passing this so you can still reveal the key
           }}
           role={role}
           onSelect={onSelectEscrow}
