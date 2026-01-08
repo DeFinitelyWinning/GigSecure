@@ -49,7 +49,7 @@ This application uses **XRPL Escrows** to hold funds cryptographically. The fund
 1.  **Clone the repository in a new folder / directory**
 
     ```bash
-    git clone [https://github.com/DeFinitelyWinning/GigSecure](https://github.com/DeFinitelyWinning/GigSecure)
+    git clone https://github.com/DeFinitelyWinning/GigSecure
     cd GigSecure
     ```
 
@@ -72,7 +72,7 @@ This application uses **XRPL Escrows** to hold funds cryptographically. The fund
 ## 🧪 Usage Guide
 
 1.  **Login:** Enter a valid XRPL Testnet Seed (or generate one at [xrpl.org/resources/testnet-faucet](https://xrpl.org/resources/testnet-faucet)).
-2.  **Create Escrow:** Click "Create Escrowg," enter the reward amount and address of Freelancer. Copy the **Secret Key** provided—save this! You need it to unlock the funds later.
+2.  **Create Escrow:** Click "Create Escrow," enter the reward amount and address of Freelancer. Copy the **Secret Key** provided—save this! You need it to unlock the funds later.
 3.  **Switch Account:** Logout and login with a _different_ wallet (the Freelancer).
 4.  **Claim Funds:** Select the gig. When prompted, enter the **Secret Key** (from Step 2).
 5.  **Success:** Watch the wallet balance update in real-time.
@@ -87,6 +87,11 @@ This application uses **XRPL Escrows** to hold funds cryptographically. The fund
 - **Integration with IPFS:** To store gig descriptions and deliverables in a decentralized manner.
 - **Arbiter System:** Adding a third-party mediator multisig for dispute resolution.
 - **Mainnet Launch:** Transitioning from Testnet to the real XRP Ledger.
+
+## 🙌 Acknowledgements
+
+- **Original template:** [Scaffold-XRP](https://www.google.com/search?q=https://github.com/Start-on-XRPL/scaffold-xrp).
+- **XRPL Commons:** For documentation and tooling
 
 ## 👥 Contributors
 
